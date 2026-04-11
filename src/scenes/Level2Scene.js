@@ -1,4 +1,17 @@
 const WORLD_WIDTH = 4000;
+const RAT_SPEED = 90;
+const INVINCIBILITY_MS = 1500;
+const MAX_LIVES = 3;
+
+// One rat per zone, each confined between a pair of every-other rock.
+// minX/maxX are the left edges of the bounding rocks.
+const RAT_PATROLS = [
+  { minX: 520,  maxX: 1180 },
+  { minX: 1180, maxX: 1880 },
+  { minX: 1880, maxX: 2480 },
+  { minX: 2480, maxX: 3080 },
+  { minX: 3080, maxX: 3680 },
+];
 
 export class Level2Scene extends Phaser.Scene {
   constructor() {
@@ -6,13 +19,15 @@ export class Level2Scene extends Phaser.Scene {
   }
 
   preload() {
-    // Reuse salvius spritesheet (already cached by Phaser if coming from Level1,
-    // but we load it defensively so the scene works standalone too).
     if (!this.textures.exists('salvius')) {
       this.load.spritesheet('salvius', '/images/salvius-sprite.png', {
         frameWidth: 340,
         frameHeight: 450,
       });
+    }
+    // Battery image is used for the lives HUD
+    if (!this.textures.exists('item_battery')) {
+      this.load.image('item_battery', '/images/level-1/battery.png');
     }
   }
 
@@ -44,6 +59,15 @@ export class Level2Scene extends Phaser.Scene {
     // ── Junkyard decorations ───────────────────────────────────────────────
     this._placeScrapPiles(groundY);
     this._placeDebris(groundY);
+
+    // ── Rats ──────────────────────────────────────────────────────────────
+    this._makeRatTexture();
+    this._placeRats(groundY);
+
+    // ── State ─────────────────────────────────────────────────────────────
+    this.lives = MAX_LIVES;
+    this.isInvincible = false;
+    this.levelComplete = false;
 
     // ── Reuse or recreate player animations ───────────────────────────────
     if (!this.anims.exists('idle')) {
@@ -87,15 +111,20 @@ export class Level2Scene extends Phaser.Scene {
     // ── Smog drifts ───────────────────────────────────────────────────────
     this._placeSmogClouds();
 
-    // ── Colliders ─────────────────────────────────────────────────────────
+    // ── Colliders / overlaps ───────────────────────────────────────────────
     this.physics.add.collider(this.player, floor);
     this.physics.add.collider(this.player, this.debrisGroup);
+    this.physics.add.overlap(this.player, this.ratGroup, this._onRatHit, null, this);
 
-    // ── Boundary wall ─────────────────────────────────────────────────────
-    this._createBoundaryWall(height, groundY);
+    // ── HUD ───────────────────────────────────────────────────────────────
+    this._buildLivesHUD();
+
+    // ── Radio tower (replaces boundary wall) — must come before tower overlap ─
+    this._createRadioTower(height, groundY);
+    this.physics.add.overlap(this.player, this.towerTrigger, this._onTowerReached, null, this);
 
     // ── Level label (top-centre, fixed to camera) ──────────────────────────
-    this.add.text(this.scale.width / 2, 12, 'JUNKYARD', {
+    this.add.text(this.scale.width / 2, 12, 'THE CITY OF SCRAP', {
       fontSize: '16px',
       fill: '#AA8844',
       fontFamily: 'monospace',
@@ -117,6 +146,22 @@ export class Level2Scene extends Phaser.Scene {
   update() {
     this.bgFar.tilePositionX = this.cameras.main.scrollX * 0.1;
     this.bgMid.tilePositionX = this.cameras.main.scrollX * 0.25;
+
+    // ── Rat patrol ────────────────────────────────────────────────────────
+    for (const rat of this.rats) {
+      if (rat.sprite.x >= rat.maxX) {
+        rat.dir = -1;
+        rat.sprite.setFlipX(true);
+      } else if (rat.sprite.x <= rat.minX) {
+        rat.dir = 1;
+        rat.sprite.setFlipX(false);
+      }
+      rat.sprite.setVelocityX(rat.dir * RAT_SPEED);
+      rat.sprite.body.velocity.y = 0;
+      rat.sprite.y = rat.groundY;
+    }
+
+    if (this.levelComplete) return;
 
     const player = this.player;
     const onGround = player.body.blocked.down;
@@ -150,6 +195,206 @@ export class Level2Scene extends Phaser.Scene {
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────
+
+  /** Battery icons in the top-right corner (one per life). */
+  _buildLivesHUD() {
+    const { width } = this.scale;
+    this.lifeIcons = [];
+    for (let i = 0; i < MAX_LIVES; i++) {
+      const icon = this.add.image(width - 12 - i * 44, 12, 'item_battery')
+        .setDisplaySize(34, 34)
+        .setOrigin(1, 0)
+        .setScrollFactor(0)
+        .setDepth(11);
+      this.lifeIcons.push(icon);
+    }
+  }
+
+  /** Draw a simple rat sprite (facing right) and cache the texture. */
+  _makeRatTexture() {
+    if (this.textures.exists('rat')) return;
+    const W = 44, H = 22;
+    const g = this.make.graphics({ x: 0, y: 0, add: false });
+
+    // Body — dark grey rounded oval
+    g.fillStyle(0x4A4A4A, 1);
+    g.fillEllipse(W * 0.42, H * 0.52, W * 0.68, H * 0.78);
+
+    // Head — slightly lighter
+    g.fillStyle(0x5A5A5A, 1);
+    g.fillEllipse(W * 0.76, H * 0.44, W * 0.36, H * 0.62);
+
+    // Snout — pink
+    g.fillStyle(0xCC7070, 1);
+    g.fillEllipse(W * 0.96, H * 0.48, W * 0.14, H * 0.30);
+
+    // Ear — pink round
+    g.fillStyle(0x3A3A3A, 1);
+    g.fillCircle(W * 0.72, H * 0.12, 5);
+    g.fillStyle(0xCC7070, 1);
+    g.fillCircle(W * 0.72, H * 0.12, 3);
+
+    // Eye — small white dot
+    g.fillStyle(0xEEEEEE, 1);
+    g.fillCircle(W * 0.84, H * 0.32, 2);
+    g.fillStyle(0x111111, 1);
+    g.fillCircle(W * 0.85, H * 0.32, 1);
+
+    // Tail — thin curved line (two segments)
+    g.lineStyle(2, 0x888888, 1);
+    g.beginPath();
+    g.moveTo(W * 0.08, H * 0.55);
+    g.lineTo(W * 0.00, H * 0.30);
+    g.strokePath();
+
+    // Legs — 4 stubby rectangles
+    g.fillStyle(0x3E3E3E, 1);
+    g.fillRect(W * 0.22, H * 0.72, 5, 7);
+    g.fillRect(W * 0.34, H * 0.74, 5, 6);
+    g.fillRect(W * 0.50, H * 0.72, 5, 7);
+    g.fillRect(W * 0.62, H * 0.74, 5, 6);
+
+    g.generateTexture('rat', W, H);
+    g.destroy();
+  }
+
+  /** Spawn one rat per patrol zone, each confined between its two rocks. */
+  _placeRats(groundY) {
+    this.ratGroup = this.physics.add.group();
+    this.rats = [];
+    this.groundY = groundY;
+
+    for (const { minX, maxX } of RAT_PATROLS) {
+      // Start near the left edge of the zone (120px in) so the first rat
+      // is visible at game start (~x=640) without the player needing to scroll.
+      const startX = minX + 120;
+      const sprite = this.physics.add.sprite(startX, groundY, 'rat')
+        .setOrigin(0.5, 1)
+        .setScale(1)
+        .setDepth(4);
+      sprite.body.setAllowGravity(false);
+      // Narrow hitbox — just the body, not the snout/tail
+      sprite.body.setSize(30, 14).setOffset(4, 6);
+      sprite.setVelocityX(RAT_SPEED);
+
+      this.ratGroup.add(sprite);
+      this.rats.push({ sprite, minX, maxX, dir: 1, groundY });
+    }
+  }
+
+  /** Called when the player overlaps a rat. */
+  _onRatHit(player, _rat) {
+    if (this.isInvincible || this.levelComplete) return;
+
+    this.lives--;
+    // Gray out the rightmost active battery icon
+    this.lifeIcons[this.lives].setTint(0x333333);
+
+    // Electrical spark at player's upper body
+    this._spawnSpark(player.x, player.y - 80);
+
+    // Camera shake
+    this.cameras.main.shake(200, 0.015);
+
+    if (this.lives <= 0) {
+      this._showGameOver();
+      return;
+    }
+
+    // Invincibility flash
+    this.isInvincible = true;
+    this.tweens.add({
+      targets: player,
+      alpha: 0.3,
+      duration: 150,
+      yoyo: true,
+      repeat: 4,
+      onComplete: () => {
+        player.setAlpha(1);
+        this.isInvincible = false;
+      },
+    });
+  }
+
+  /** Draw a brief electrical spark starburst at the given world position. */
+  _spawnSpark(wx, wy) {
+    const g = this.add.graphics().setDepth(20);
+    const colours = [0xFFFF00, 0xFFFFAA, 0xFFCC00, 0xFFFFFF];
+    const rays = 8;
+    for (let i = 0; i < rays; i++) {
+      const angle = (i / rays) * Math.PI * 2;
+      const len = 14 + (i % 3) * 6;
+      const col = colours[i % colours.length];
+      g.lineStyle(2, col, 1);
+      g.beginPath();
+      g.moveTo(wx, wy);
+      g.lineTo(wx + Math.cos(angle) * len, wy + Math.sin(angle) * len);
+      g.strokePath();
+    }
+    // Small bright core
+    g.fillStyle(0xFFFFFF, 1);
+    g.fillCircle(wx, wy, 4);
+
+    this.tweens.add({
+      targets: g,
+      alpha: 0,
+      duration: 400,
+      ease: 'Power2',
+      onComplete: () => g.destroy(),
+    });
+  }
+
+  /** Show GAME OVER overlay and restart at Level 1. */
+  _showGameOver() {
+    this.levelComplete = true; // freeze input / overlap
+    const { width, height } = this.scale;
+
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.65)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(20);
+
+    this.add.text(width / 2, height / 2 - 20, 'GAME OVER', {
+      fontSize: '44px',
+      fill: '#FF3333',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 6,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+
+    this.add.text(width / 2, height / 2 + 30, 'Returning to Level 1...', {
+      fontSize: '16px',
+      fill: '#ffffff',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+
+    this.time.delayedCall(2500, () => this.scene.start('Level1Scene'));
+  }
+
+  /** Called when the player walks into the radio tower trigger zone. */
+  _onTowerReached(player, _trigger) {
+    if (this.levelComplete) return;
+    this.levelComplete = true;
+
+    const { width, height } = this.scale;
+
+    this.add.rectangle(0, 0, width, height, 0x000000, 0.5)
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(20);
+
+    this.add.text(width / 2, height / 2 - 20, 'LEVEL COMPLETE!', {
+      fontSize: '40px',
+      fill: '#FFD700',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 6,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+
+    this.add.text(width / 2, height / 2 + 28, 'Signal acquired — heading to the radio tower...', {
+      fontSize: '16px',
+      fill: '#ffffff',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(21);
+
+    this.time.delayedCall(2500, () => this.scene.start('Level3Scene'));
+  }
 
   /**
    * Build jagged junkyard silhouette textures for the parallax background.
@@ -330,41 +575,89 @@ export class Level2Scene extends Phaser.Scene {
     });
   }
 
-  /** Rusted metal wall at the right edge of the junkyard. */
-  _createBoundaryWall(height, groundY) {
-    const wallW = 80;
-    const wallH = groundY + 8;
+  /**
+   * Draw a radio tower near the right edge of the world: tall lattice structure
+   * with cross-braces, three horizontal rungs, a narrow mast, and a blinking
+   * red warning light at the top. An invisible trigger zone at the base detects
+   * when the player reaches it.
+   */
+  _createRadioTower(height, groundY) {
+    const towerX = WORLD_WIDTH - 220;
+    const towerW = 90;
+    const towerH = groundY;       // tower base sits at ground level
+    const mastH  = towerH * 0.85; // total visual height (from top of screen)
+    const baseW  = towerW;
+    const topW   = 14;
+    const cx     = towerX + towerW / 2;
+
     const g = this.make.graphics({ x: 0, y: 0, add: false });
 
-    // Base metal plate
-    g.fillStyle(0x2E2E2E, 1);
-    g.fillRect(0, 0, wallW, wallH);
+    // ── Lattice legs (two angled outer legs converging to a narrow mast) ──
+    g.lineStyle(4, 0x4A4A4A, 1);
+    // Left leg
+    g.lineBetween(0, towerH, topW / 2, mastH);
+    // Right leg
+    g.lineBetween(baseW, towerH, baseW - topW / 2, mastH);
 
-    // Rust staining
-    g.fillStyle(0x6B3A10, 0.5);
-    g.fillRect(8, 20, 14, wallH - 30);
-    g.fillRect(45, 10, 10, wallH - 20);
-
-    // Horizontal weld/bolt lines
-    g.lineStyle(2, 0x1A1A1A, 0.8);
-    for (let ly = 18; ly < wallH; ly += 26) {
-      g.lineBetween(0, ly, wallW, ly);
+    // ── Cross-braces ─────────────────────────────────────────────────────
+    g.lineStyle(2, 0x3A3A3A, 0.9);
+    const braceCount = 8;
+    for (let i = 0; i <= braceCount; i++) {
+      const t = i / braceCount;
+      const y  = towerH - t * (towerH - mastH);
+      const hw = (baseW / 2) * (1 - t) + (topW / 2) * t; // linear taper
+      // Horizontal rung
+      g.lineBetween(baseW / 2 - hw, y, baseW / 2 + hw, y);
+      // Diagonal braces (alternating direction)
+      if (i < braceCount) {
+        const t2  = (i + 1) / braceCount;
+        const y2  = towerH - t2 * (towerH - mastH);
+        const hw2 = (baseW / 2) * (1 - t2) + (topW / 2) * t2;
+        if (i % 2 === 0) {
+          g.lineBetween(baseW / 2 - hw, y, baseW / 2 + hw2, y2);
+        } else {
+          g.lineBetween(baseW / 2 + hw, y, baseW / 2 - hw2, y2);
+        }
+      }
     }
 
-    // Bolt dots
-    g.fillStyle(0x4A4A4A, 1);
-    for (let ly = 18; ly < wallH; ly += 26) {
-      g.fillCircle(8, ly, 3);
-      g.fillCircle(wallW - 8, ly, 3);
-    }
+    // ── Narrow mast above the lattice ─────────────────────────────────────
+    const mastTopY = mastH * 0.35;
+    g.lineStyle(3, 0x5A5A5A, 1);
+    g.lineBetween(baseW / 2, mastH, baseW / 2, mastTopY);
 
-    // Left-edge highlight
-    g.lineStyle(2, 0x5A5A5A, 0.6);
-    g.lineBetween(0, 0, 0, wallH);
+    // ── Platform rings on the mast ────────────────────────────────────────
+    g.lineStyle(3, 0x6B6B6B, 1);
+    [0.55, 0.65, 0.75].forEach(t => {
+      const py = mastH + (mastTopY - mastH) * (1 - t);
+      g.lineBetween(baseW / 2 - 10, py, baseW / 2 + 10, py);
+    });
 
-    g.generateTexture('wall_l2', wallW, wallH);
+    g.generateTexture('radio_tower', towerW, towerH);
     g.destroy();
 
-    this.add.image(WORLD_WIDTH - wallW, 0, 'wall_l2').setOrigin(0, 0).setDepth(4);
+    this.add.image(towerX, 0, 'radio_tower').setOrigin(0, 0).setDepth(4);
+
+    // ── Blinking red warning light at mast tip ────────────────────────────
+    const light = this.add.circle(
+      towerX + towerW / 2,
+      mastTopY,              // world-space Y matches generated texture top
+      4,
+      0xFF2222,
+    ).setDepth(5);
+    this.tweens.add({
+      targets: light,
+      alpha: 0,
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+
+    // ── Invisible trigger zone at tower base ──────────────────────────────
+    const trigger = this.add.rectangle(towerX, 0, towerW, groundY, 0x000000, 0)
+      .setOrigin(0, 0);
+    this.physics.add.existing(trigger, true);
+    this.towerTrigger = trigger;
   }
 }
