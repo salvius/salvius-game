@@ -24,7 +24,7 @@ Salvius must get through a junkyard (The City of Scrap), avoiding rats that will
 
 ## Level 3: The Radio Tower
 
-Salvius must jump from point to point to get to the top of a radio tower to broadcast a message.
+The playing style changes from traversing a horizontal world, to a vertical one where Salvius must jump from platform to platform to get to the top of a radio tower to broadcast a message.
 
 ## Design Plan
 

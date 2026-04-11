@@ -29,6 +29,12 @@ export class Level2Scene extends Phaser.Scene {
     if (!this.textures.exists('item_battery')) {
       this.load.image('item_battery', '/images/level-1/battery.png');
     }
+
+    this.load.image('junkpile_large',  '/images/level-2/junkpile-large.png');
+    this.load.image('junkpile_medium', '/images/level-2/junkpile-medium.png');
+    this.load.image('junkpile_wide',   '/images/level-2/junkpile-wide.png');
+    if (!this.textures.exists('rat'))       this.load.image('rat',       '/images/level-2/rat.png');
+    if (!this.textures.exists('rat_spark')) this.load.image('rat_spark', '/images/level-2/rat-spark.png');
   }
 
   create() {
@@ -61,7 +67,6 @@ export class Level2Scene extends Phaser.Scene {
     this._placeDebris(groundY);
 
     // ── Rats ──────────────────────────────────────────────────────────────
-    this._makeRatTexture();
     this._placeRats(groundY);
 
     // ── State ─────────────────────────────────────────────────────────────
@@ -210,54 +215,6 @@ export class Level2Scene extends Phaser.Scene {
     }
   }
 
-  /** Draw a simple rat sprite (facing right) and cache the texture. */
-  _makeRatTexture() {
-    if (this.textures.exists('rat')) return;
-    const W = 44, H = 22;
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
-
-    // Body — dark grey rounded oval
-    g.fillStyle(0x4A4A4A, 1);
-    g.fillEllipse(W * 0.42, H * 0.52, W * 0.68, H * 0.78);
-
-    // Head — slightly lighter
-    g.fillStyle(0x5A5A5A, 1);
-    g.fillEllipse(W * 0.76, H * 0.44, W * 0.36, H * 0.62);
-
-    // Snout — pink
-    g.fillStyle(0xCC7070, 1);
-    g.fillEllipse(W * 0.96, H * 0.48, W * 0.14, H * 0.30);
-
-    // Ear — pink round
-    g.fillStyle(0x3A3A3A, 1);
-    g.fillCircle(W * 0.72, H * 0.12, 5);
-    g.fillStyle(0xCC7070, 1);
-    g.fillCircle(W * 0.72, H * 0.12, 3);
-
-    // Eye — small white dot
-    g.fillStyle(0xEEEEEE, 1);
-    g.fillCircle(W * 0.84, H * 0.32, 2);
-    g.fillStyle(0x111111, 1);
-    g.fillCircle(W * 0.85, H * 0.32, 1);
-
-    // Tail — thin curved line (two segments)
-    g.lineStyle(2, 0x888888, 1);
-    g.beginPath();
-    g.moveTo(W * 0.08, H * 0.55);
-    g.lineTo(W * 0.00, H * 0.30);
-    g.strokePath();
-
-    // Legs — 4 stubby rectangles
-    g.fillStyle(0x3E3E3E, 1);
-    g.fillRect(W * 0.22, H * 0.72, 5, 7);
-    g.fillRect(W * 0.34, H * 0.74, 5, 6);
-    g.fillRect(W * 0.50, H * 0.72, 5, 7);
-    g.fillRect(W * 0.62, H * 0.74, 5, 6);
-
-    g.generateTexture('rat', W, H);
-    g.destroy();
-  }
-
   /** Spawn one rat per patrol zone, each confined between its two rocks. */
   _placeRats(groundY) {
     this.ratGroup = this.physics.add.group();
@@ -270,7 +227,7 @@ export class Level2Scene extends Phaser.Scene {
       const startX = minX + 120;
       const sprite = this.physics.add.sprite(startX, groundY, 'rat')
         .setOrigin(0.5, 1)
-        .setScale(1)
+        .setScale(0.15)
         .setDepth(4);
       sprite.body.setAllowGravity(false);
       // Narrow hitbox — just the body, not the snout/tail
@@ -283,15 +240,15 @@ export class Level2Scene extends Phaser.Scene {
   }
 
   /** Called when the player overlaps a rat. */
-  _onRatHit(player, _rat) {
+  _onRatHit(player, rat) {
     if (this.isInvincible || this.levelComplete) return;
 
     this.lives--;
     // Gray out the rightmost active battery icon
     this.lifeIcons[this.lives].setTint(0x333333);
 
-    // Electrical spark at player's upper body
-    this._spawnSpark(player.x, player.y - 80);
+    // Blink the rat between its normal and spark texture
+    this._blinkRatSpark(rat);
 
     // Camera shake
     this.cameras.main.shake(200, 0.015);
@@ -316,31 +273,21 @@ export class Level2Scene extends Phaser.Scene {
     });
   }
 
-  /** Draw a brief electrical spark starburst at the given world position. */
-  _spawnSpark(wx, wy) {
-    const g = this.add.graphics().setDepth(20);
-    const colours = [0xFFFF00, 0xFFFFAA, 0xFFCC00, 0xFFFFFF];
-    const rays = 8;
-    for (let i = 0; i < rays; i++) {
-      const angle = (i / rays) * Math.PI * 2;
-      const len = 14 + (i % 3) * 6;
-      const col = colours[i % colours.length];
-      g.lineStyle(2, col, 1);
-      g.beginPath();
-      g.moveTo(wx, wy);
-      g.lineTo(wx + Math.cos(angle) * len, wy + Math.sin(angle) * len);
-      g.strokePath();
-    }
-    // Small bright core
-    g.fillStyle(0xFFFFFF, 1);
-    g.fillCircle(wx, wy, 4);
-
-    this.tweens.add({
-      targets: g,
-      alpha: 0,
-      duration: 400,
-      ease: 'Power2',
-      onComplete: () => g.destroy(),
+  /** Blink a rat between its normal and spark texture several times. */
+  _blinkRatSpark(rat) {
+    let count = 0;
+    const total = 6; // number of texture swaps (3 sparks, 3 returns)
+    this.time.addEvent({
+      delay: 80,
+      repeat: total - 1,
+      callback: () => {
+        count++;
+        rat.setTexture(count % 2 !== 0 ? 'rat_spark' : 'rat');
+      },
+    });
+    // Guarantee the rat ends on its normal texture
+    this.time.delayedCall(80 * total + 10, () => {
+      if (rat.active) rat.setTexture('rat');
     });
   }
 
@@ -436,111 +383,49 @@ export class Level2Scene extends Phaser.Scene {
     return pts;
   }
 
-  /** Place physic-enabled debris (jagged rocks / crushed metal). */
+  /** Place physic-enabled debris (junk piles). */
   _placeDebris(groundY) {
     this.debrisGroup = this.physics.add.staticGroup();
 
     const configs = [
-      { x: 520,  w: 60, h: 30, color: 0x4A3020, accent: 0x6B4030 },
-      { x: 870,  w: 40, h: 22, color: 0x3E3E3E, accent: 0x5A5A5A },
-      { x: 1180, w: 78, h: 42, color: 0x4A2E18, accent: 0x6E4020 },
-      { x: 1530, w: 44, h: 28, color: 0x3A3A3A, accent: 0x555555 },
-      { x: 1880, w: 65, h: 38, color: 0x4A3020, accent: 0x6B4030 },
-      { x: 2180, w: 36, h: 20, color: 0x3E3E3E, accent: 0x5A5A5A },
-      { x: 2480, w: 82, h: 48, color: 0x4A2E18, accent: 0x6E4020 },
-      { x: 2780, w: 48, h: 30, color: 0x3A3A3A, accent: 0x555555 },
-      { x: 3080, w: 62, h: 36, color: 0x4A3020, accent: 0x6B4030 },
-      { x: 3430, w: 52, h: 32, color: 0x3E3E3E, accent: 0x5A5A5A },
-      { x: 3680, w: 74, h: 44, color: 0x4A2E18, accent: 0x6E4020 },
+      { x: 520,  key: 'junkpile_wide' },
+      { x: 1100, key: 'junkpile_wide' },
+      { x: 1880, key: 'junkpile_wide' },
+      { x: 2230, key: 'junkpile_wide' },
+      { x: 2740, key: 'junkpile_wide' },
+      { x: 3080, key: 'junkpile_wide' },
+      { x: 3680, key: 'junkpile_wide' },
     ];
 
-    configs.forEach(({ x, w, h, color, accent }, i) => {
-      const g = this.make.graphics({ x: 0, y: 0, add: false });
-      // Jagged irregular shape using a polygon
-      g.fillStyle(color, 1);
-      g.fillPoints([
-        new Phaser.Math.Vector2(0,       h * 0.6),
-        new Phaser.Math.Vector2(w * 0.1, 0),
-        new Phaser.Math.Vector2(w * 0.4, h * 0.15),
-        new Phaser.Math.Vector2(w * 0.6, 0),
-        new Phaser.Math.Vector2(w * 0.85,h * 0.2),
-        new Phaser.Math.Vector2(w,       h * 0.5),
-        new Phaser.Math.Vector2(w,       h),
-        new Phaser.Math.Vector2(0,       h),
-      ], true);
-      // Rust/metal highlight
-      g.fillStyle(accent, 0.5);
-      g.fillRect(w * 0.2, h * 0.1, w * 0.3, h * 0.2);
-      const key = `debris_${i}`;
-      g.generateTexture(key, w, h);
-      g.destroy();
-
-      const piece = this.add.image(x, groundY - h, key).setOrigin(0, 0);
+    configs.forEach(({ x, key }) => {
+      const piece = this.add.image(x, groundY + 10, key).setOrigin(0.5, 1).setScale(0.5);
       this.physics.add.existing(piece, true);
       this.debrisGroup.add(piece);
     });
   }
 
-  /** Place tall scrap-pile decorations (replaces trees). */
+  /** Place tall scrap-pile decorations. */
   _placeScrapPiles(groundY) {
-    this._makeScrapPileTexture('scrap_sm', 28, 60);
-    this._makeScrapPileTexture('scrap_md', 38, 85);
-    this._makeScrapPileTexture('scrap_lg', 50, 110);
-
     [
-      { x: 180,  key: 'scrap_md' },
-      { x: 410,  key: 'scrap_sm' },
-      { x: 700,  key: 'scrap_lg' },
-      { x: 1020, key: 'scrap_sm' },
-      { x: 1340, key: 'scrap_md' },
-      { x: 1640, key: 'scrap_lg' },
-      { x: 1800, key: 'scrap_sm' },
-      { x: 2040, key: 'scrap_md' },
-      { x: 2360, key: 'scrap_lg' },
-      { x: 2620, key: 'scrap_sm' },
-      { x: 2900, key: 'scrap_md' },
-      { x: 3180, key: 'scrap_lg' },
-      { x: 3360, key: 'scrap_sm' },
-      { x: 3580, key: 'scrap_md' },
-      { x: 3820, key: 'scrap_lg' },
+      { x: 100,  key: 'junkpile_medium' },
+      { x: 410,  key: 'junkpile_large'  },
+      { x: 700,  key: 'junkpile_large'  },
+      { x: 1120, key: 'junkpile_large'  },
+      { x: 1340, key: 'junkpile_medium' },
+      { x: 1640, key: 'junkpile_large'  },
+      { x: 1940, key: 'junkpile_large'  },
+      { x: 2200, key: 'junkpile_medium' },
+      { x: 2470, key: 'junkpile_large'  },
+      { x: 2750, key: 'junkpile_large'  },
+      { x: 2990, key: 'junkpile_medium' },
+      { x: 3220, key: 'junkpile_large'  },
     ].forEach(({ x, key }) => {
-      this.add.image(x, groundY, key).setOrigin(0.5, 1).setDepth(2);
+      const scale = 0.4;
+      this.add.image(x, groundY + 20, key).setOrigin(0.5, 1).setScale(scale).setDepth(2);
     });
   }
 
-  /** Draw a stacked scrap-pile texture (recycled junk tower). */
-  _makeScrapPileTexture(key, w, h) {
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
-    const cx = w / 2;
 
-    // Base heap (wide)
-    g.fillStyle(0x4A3018, 1);
-    g.fillRect(0, h * 0.65, w, h * 0.35);
-
-    // Middle slab
-    g.fillStyle(0x3E3E3E, 1);
-    g.fillRect(cx - w * 0.3, h * 0.38, w * 0.6, h * 0.30);
-
-    // Top piece (narrower, angled)
-    g.fillStyle(0x5C3B1E, 1);
-    g.fillPoints([
-      new Phaser.Math.Vector2(cx - w * 0.18, h * 0.38),
-      new Phaser.Math.Vector2(cx + w * 0.22, h * 0.12),
-      new Phaser.Math.Vector2(cx + w * 0.28, h * 0.38),
-    ], true);
-
-    // Protruding rod / antenna stub
-    g.fillStyle(0x6B6B6B, 1);
-    g.fillRect(cx + w * 0.05, 0, 4, h * 0.18);
-
-    // Rust accent streaks on the base
-    g.fillStyle(0x7A3E10, 0.6);
-    g.fillRect(w * 0.1, h * 0.70, 6, h * 0.20);
-    g.fillRect(w * 0.55, h * 0.68, 4, h * 0.22);
-
-    g.generateTexture(key, w, h);
-    g.destroy();
-  }
 
   /** Drifting smog / smoke patches across the junkyard sky. */
   _placeSmogClouds() {
