@@ -25,6 +25,8 @@ export class Level1Scene extends Phaser.Scene {
     this.load.image('rock_large',  '/images/level-1/rock-large.png');
     this.load.image('cactus_short', '/images/level-1/cactus-short.png');
     this.load.image('cactus_tall',  '/images/level-1/cactus-tall.png');
+
+    this.load.audio('pick_up_object', '/audio/pick-up-object.wav');
   }
 
   create() {
@@ -265,19 +267,51 @@ export class Level1Scene extends Phaser.Scene {
     if (this.collectedItems.has(key)) return;
 
     this.collectedItems.add(key);
+
+    // Capture world position before destroying the item
+    const itemX = item.x;
+    const itemY = item.y;
     this.tweens.killTweensOf(item);
     item.destroy();
 
-    // Update HUD icon: switch from grayscale to full colour
+    this.sound.play('pick_up_object');
+
+    // Update HUD icon: switch from grayscale to full colour + scale pop
     const icon = this.hudIcons[key];
-    if (icon) icon.clearTint();
+    if (icon) {
+      icon.clearTint();
+      this.tweens.add({
+        targets: icon,
+        scaleX: icon.scaleX * 1.7,
+        scaleY: icon.scaleY * 1.7,
+        duration: 150,
+        yoyo: true,
+        ease: 'Back.easeOut',
+      });
+    }
 
     // Update counter
     const count = this.collectedItems.size;
     this.hudCounter.setText(`${count} / 5`);
 
-    // Collection flash effect
-    this.cameras.main.flash(120, 255, 255, 200, false);
+    // Floating label rising from the item's world position
+    const itemData = ITEMS.find(i => i.key === key);
+    const floatText = this.add.text(itemX, itemY - 20, `+ ${itemData?.label ?? ''}`, {
+      fontSize: '18px',
+      fill: '#FFD700',
+      fontFamily: 'monospace',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5, 1).setDepth(15);
+
+    this.tweens.add({
+      targets: floatText,
+      y: itemY - 90,
+      alpha: 0,
+      duration: 1000,
+      ease: 'Cubic.easeOut',
+      onComplete: () => floatText.destroy(),
+    });
 
     if (count === 5) {
       this._showLevelComplete();

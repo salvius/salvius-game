@@ -35,6 +35,10 @@ export class Level2Scene extends Phaser.Scene {
     this.load.image('junkpile_wide',   '/images/level-2/junkpile-wide.png');
     if (!this.textures.exists('rat'))       this.load.image('rat',       '/images/level-2/rat.png');
     if (!this.textures.exists('rat_spark')) this.load.image('rat_spark', '/images/level-2/rat-spark.png');
+
+    if (!this.cache.audio.exists('rat_squeak')) {
+      this.load.audio('rat_squeak', '/audio/rat-squeak.wav');
+    }
   }
 
   create() {
@@ -206,8 +210,8 @@ export class Level2Scene extends Phaser.Scene {
     const { width } = this.scale;
     this.lifeIcons = [];
     for (let i = 0; i < MAX_LIVES; i++) {
-      const icon = this.add.image(width - 12 - i * 44, 12, 'item_battery')
-        .setDisplaySize(34, 34)
+      const icon = this.add.image(width - 12 - i * 50, 12, 'item_battery')
+        .setDisplaySize(50, 50)
         .setOrigin(1, 0)
         .setScrollFactor(0)
         .setDepth(11);
@@ -242,6 +246,8 @@ export class Level2Scene extends Phaser.Scene {
   /** Called when the player overlaps a rat. */
   _onRatHit(player, rat) {
     if (this.isInvincible || this.levelComplete) return;
+
+    this.sound.play('rat_squeak');
 
     this.lives--;
     // Gray out the rightmost active battery icon
