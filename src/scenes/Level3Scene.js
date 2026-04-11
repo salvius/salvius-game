@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TouchControls, TOUCH_HUD_HEIGHT } from '../ui/TouchControls.js';
+import { GameSettings } from '../settings/GameSettings.js';
 
 // Level 3 is a vertical world - camera scrolls upward as Salvius climbs the tower.
 const WORLD_HEIGHT = 3200;
@@ -210,6 +211,9 @@ export class Level3Scene extends Phaser.Scene {
       this.scale.off('resize', this._onResize, this);
       this.touchInput?.destroy();
     });
+
+    // ── Persistent UI overlay ──────────────────────────────────────────────
+    if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');
   }
 
   update() {
@@ -231,7 +235,7 @@ export class Level3Scene extends Phaser.Scene {
 
     // Landing detection - fires regardless of which animation is active
     if (this.wasInAir && onGround) {
-      this.sound.play('jump_land');
+      if (GameSettings.sounds) this.sound.play('jump_land');
     }
     this.wasInAir = !onGround;
 
@@ -240,7 +244,7 @@ export class Level3Scene extends Phaser.Scene {
     if (jumpPressed && onGround) {
       player.setVelocityY(-700);
       player.play('jump', true);
-      this.sound.play('jump_start');
+      if (GameSettings.sounds) this.sound.play('jump_start');
     }
 
     const grounded = onGround && player.body.velocity.y >= 0;

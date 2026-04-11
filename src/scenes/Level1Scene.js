@@ -1,4 +1,5 @@
 import { TouchControls, TOUCH_HUD_HEIGHT } from '../ui/TouchControls.js';
+import { GameSettings } from '../settings/GameSettings.js';
 
 const WORLD_WIDTH = 4000;
 
@@ -143,6 +144,9 @@ export class Level1Scene extends Phaser.Scene {
       this.scale.off('resize', this._onResize, this);
       this.touchInput?.destroy();
     });
+
+    // ── Persistent UI overlay ──────────────────────────────────────────────
+    if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');
   }
 
   update() {
@@ -295,7 +299,7 @@ export class Level1Scene extends Phaser.Scene {
     this.tweens.killTweensOf(item);
     item.destroy();
 
-    this.sound.play('pick_up_object');
+    if (GameSettings.sounds) this.sound.play('pick_up_object');
 
     // Update HUD icon: switch from grayscale to full colour + scale pop
     const icon = this.hudIcons[key];

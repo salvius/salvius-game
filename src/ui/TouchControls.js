@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { GameSettings } from '../settings/GameSettings.js';
 
 /** Height (px) reserved at the bottom of the screen for the touch HUD. */
 export const TOUCH_HUD_HEIGHT = 130;
@@ -118,6 +119,7 @@ export class TouchControls {
 
   /** Short haptic pulse — no-op on desktop or unsupported browsers. */
   _vibrate(ms = 15) {
+    if (!GameSettings.haptics) return;
     if ('vibrate' in navigator) navigator.vibrate(ms);
   }
 

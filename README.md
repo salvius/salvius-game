@@ -28,14 +28,13 @@ The playing style changes from traversing a horizontal world, to a vertical one 
 
 ## Design Plan
 
-* Move level instructions in-game.
-* Setting: Toggle sounds on or off, toggle off haptic feedback (vibration when buttons are clicked)
 * Accessability Features
 * Add some og meta data for if people share a link directly
   - Screenshot image
 * Offline support with progressive web app
 * Music for each level
 - Setting to toggle music on or off
+* Add credits scroll after game winning and credits listed in about section.
 
 ## Collaborators Welcome
 

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Level1Scene } from './scenes/Level1Scene.js';
 import { Level2Scene } from './scenes/Level2Scene.js';
 import { Level3Scene } from './scenes/Level3Scene.js';
+import { UIScene } from './ui/UIScene.js';
 
 const sceneMap = {
   '#level1': Level1Scene,
@@ -12,9 +13,12 @@ const sceneMap = {
 const allScenes = [Level1Scene, Level2Scene, Level3Scene];
 const hash = window.location.hash.toLowerCase();
 const startScene = sceneMap[hash];
-const scenes = startScene
+const levelScenes = startScene
   ? [startScene, ...allScenes.filter(s => s !== startScene)]
   : allScenes;
+
+// UIScene always comes last so it renders on top of game scenes
+const scenes = [...levelScenes, UIScene];
 
 new Phaser.Game({
   type: Phaser.AUTO,

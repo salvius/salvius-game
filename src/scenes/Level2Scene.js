@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { TouchControls, TOUCH_HUD_HEIGHT } from '../ui/TouchControls.js';
+import { GameSettings } from '../settings/GameSettings.js';
 
 const WORLD_WIDTH = 4000;
 const RAT_SPEED = 90;
@@ -170,6 +171,9 @@ export class Level2Scene extends Phaser.Scene {
       this.scale.off('resize', this._onResize, this);
       this.touchInput?.destroy();
     });
+
+    // ── Persistent UI overlay ──────────────────────────────────────────────
+    if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');
   }
 
   update() {
@@ -227,14 +231,13 @@ export class Level2Scene extends Phaser.Scene {
 
   // ── Private helpers ──────────────────────────────────────────────────────
 
-  /** Battery icons in the top-right corner (one per life). */
+  /** Battery icons in the top-left corner (one per life). */
   _buildLivesHUD() {
-    const { width } = this.scale;
     this.lifeIcons = [];
     for (let i = 0; i < MAX_LIVES; i++) {
-      const icon = this.add.image(width - 12 - i * 50, 12, 'item_battery')
+      const icon = this.add.image(12 + i * 50, 12, 'item_battery')
         .setDisplaySize(50, 50)
-        .setOrigin(1, 0)
+        .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(11);
       this.lifeIcons.push(icon);
@@ -271,7 +274,7 @@ export class Level2Scene extends Phaser.Scene {
   _onRatHit(player, rat) {
     if (this.isInvincible || this.levelComplete) return;
 
-    this.sound.play('rat_squeak');
+    if (GameSettings.sounds) this.sound.play('rat_squeak');
 
     this.lives--;
     // Gray out the rightmost active battery icon
@@ -331,7 +334,7 @@ export class Level2Scene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, effectiveH);
     this.cameras.main.setDeadzone(Math.min(300, width * 0.3), 200);
     this.levelTitle?.setPosition(width / 2, 12);
-    this.lifeIcons?.forEach((icon, i) => icon.setPosition(width - 12 - i * 50, 12));
+    this.lifeIcons?.forEach((icon, i) => icon.setPosition(12 + i * 50, 12));
     if (this.hudBacking) this.hudBacking.setPosition(0, effectiveH).setSize(width, hudH);
     this.touchInput?.resize(width, height);
   }
