@@ -225,11 +225,13 @@ export class Level2Scene extends Phaser.Scene {
     this.rats = [];
     this.groundY = groundY;
 
+    const ratGroundY = groundY + 10;
+
     for (const { minX, maxX } of RAT_PATROLS) {
       // Start near the left edge of the zone (120px in) so the first rat
       // is visible at game start (~x=640) without the player needing to scroll.
       const startX = minX + 120;
-      const sprite = this.physics.add.sprite(startX, groundY, 'rat')
+      const sprite = this.physics.add.sprite(startX, ratGroundY, 'rat')
         .setOrigin(0.5, 1)
         .setScale(0.15)
         .setDepth(4);
@@ -239,7 +241,7 @@ export class Level2Scene extends Phaser.Scene {
       sprite.setVelocityX(RAT_SPEED);
 
       this.ratGroup.add(sprite);
-      this.rats.push({ sprite, minX, maxX, dir: 1, groundY });
+      this.rats.push({ sprite, minX, maxX, dir: 1, groundY: ratGroundY });
     }
   }
 
