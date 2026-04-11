@@ -249,7 +249,7 @@ export class Level1Scene extends Phaser.Scene {
       img.body.setSize(img.width * 0.18, img.height * 0.18);
       img.refreshBody();
 
-      // Bob tween is purely visual — the static body stays at the original Y
+      // Bob tween is purely visual - the static body stays at the original Y
       this.tweens.add({
         targets: img,
         y: groundY - 38,
@@ -393,7 +393,7 @@ export class Level1Scene extends Phaser.Scene {
     this.time.delayedCall(2500, () => this.scene.start('Level2Scene'));
   }
 
-  /** Add slowly drifting clouds (hot desert sky — keep white but sparser). */
+  /** Add slowly drifting clouds (hot desert sky - keep white but sparser). */
   _placeClouds() {
     const g = this.make.graphics({ x: 0, y: 0, add: false });
     g.fillStyle(0xFFFFFF, 0.75);

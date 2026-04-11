@@ -128,7 +128,7 @@ export class Level2Scene extends Phaser.Scene {
     // ── HUD ───────────────────────────────────────────────────────────────
     this._buildLivesHUD();
 
-    // ── Radio tower (replaces boundary wall) — must come before tower overlap ─
+    // ── Radio tower (replaces boundary wall) - must come before tower overlap ─
     this._createRadioTower(height, groundY);
     this.physics.add.overlap(this.player, this.towerTrigger, this._onTowerReached, null, this);
 
@@ -236,7 +236,7 @@ export class Level2Scene extends Phaser.Scene {
         .setScale(0.15)
         .setDepth(4);
       sprite.body.setAllowGravity(false);
-      // Narrow hitbox — just the body, not the snout/tail
+      // Narrow hitbox - just the body, not the snout/tail
       sprite.body.setSize(30, 14).setOffset(4, 6);
       sprite.setVelocityX(RAT_SPEED);
 
@@ -342,7 +342,7 @@ export class Level2Scene extends Phaser.Scene {
       strokeThickness: 6,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(21);
 
-    this.add.text(width / 2, height / 2 + 28, 'Signal acquired — heading to the radio tower...', {
+    this.add.text(width / 2, height / 2 + 28, 'Signal acquired - heading to the radio tower...', {
       fontSize: '16px',
       fill: '#ffffff',
       fontFamily: 'monospace',
@@ -402,7 +402,7 @@ export class Level2Scene extends Phaser.Scene {
       { x: 2230, key: 'junkpile_wide' },
       { x: 2740, key: 'junkpile_wide' },
       { x: 3080, key: 'junkpile_wide' },
-      { x: 3680, key: 'junkpile_wide' },
+      { x: 3380, key: 'junkpile_wide' },
     ];
 
     configs.forEach(({ x, key }) => {

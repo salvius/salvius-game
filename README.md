@@ -28,12 +28,14 @@ The playing style changes from traversing a horizontal world, to a vertical one 
 
 ## Design Plan
 
-* Sounds / music
-* Settings
-* Mobile friendly version where you press and hold on the left or right side of the screen to move and double tap to jump (or something like that).
+* Responsive to device size + mobile/touch screen friendly version where you press and hold on the left or right side of the screen to move and double tap to jump (or something like that).
+* Music for each level
+* Settings:
+  - Toggle sounds on or off
+  - Toggle music on or off
 * Accessability Features
 
-### Collaborators Welcome
+## Collaborators Welcome
 
 Ideas consistent with the game's themes (recycling, environmental preservation, clean and renewable energy sources, etc.) are welcomed. If you have an idea for an addition or new level let's talk and work on getting it added!
 
