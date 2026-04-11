@@ -42,8 +42,9 @@ export class TouchControls {
     this._objects.forEach(o => o.destroy());
     this._objects = [];
 
-    const R = 40;       // button radius (px)
-    const FILL_A = 0.3; // fill alpha
+    const R = 40;             // button radius (px)
+    const FILL_A = 0.3;       // fill alpha (resting)
+    const PRESSED_SCALE = 0.85; // scale when pressed
     const DEPTH = 20;
 
     // Bottom-left: directional pad
@@ -57,28 +58,54 @@ export class TouchControls {
     const runX  = w - 150;
 
     const make = (x, y, label, onDown, onUp) => {
-      const g = this.scene.add.graphics()
+      // Position the Graphics at the button centre so Phaser scales from there.
+      const g = this.scene.add.graphics({ x, y })
         .setScrollFactor(0)
         .setDepth(DEPTH);
 
+      // Draw at local (0,0) — the object's own origin is already at (x,y).
       g.fillStyle(0xffffff, FILL_A);
-      g.fillCircle(x, y, R);
+      g.fillCircle(0, 0, R);
       g.lineStyle(1.5, 0xffffff, 0.55);
-      g.strokeCircle(x, y, R);
+      g.strokeCircle(0, 0, R);
 
       g.setInteractive(
-        new Phaser.Geom.Circle(x, y, R),
+        new Phaser.Geom.Circle(0, 0, R),
         Phaser.Geom.Circle.Contains,
       );
-      g.on('pointerdown', onDown);
-      g.on('pointerup', onUp);
-      g.on('pointerout', onUp);
 
       const t = this.scene.add.text(x, y, label, {
         fontSize: '22px',
         fill: '#ffffff',
         fontFamily: 'monospace',
       }).setOrigin(0.5).setScrollFactor(0).setDepth(DEPTH + 1);
+
+      g.on('pointerdown', () => {
+        onDown();
+        this.scene.tweens.killTweensOf([g, t]);
+        this.scene.tweens.add({
+          targets: [g, t],
+          scaleX: PRESSED_SCALE,
+          scaleY: PRESSED_SCALE,
+          duration: 70,
+          ease: 'Quad.easeIn',
+        });
+        this._vibrate(15);
+      });
+
+      const release = () => {
+        onUp();
+        this.scene.tweens.killTweensOf([g, t]);
+        this.scene.tweens.add({
+          targets: [g, t],
+          scaleX: 1,
+          scaleY: 1,
+          duration: 110,
+          ease: 'Back.easeOut',
+        });
+      };
+      g.on('pointerup', release);
+      g.on('pointerout', release);
 
       this._objects.push(g, t);
     };
@@ -87,6 +114,11 @@ export class TouchControls {
     make(rightX, padY, '▶', () => { this.right = true;  }, () => { this.right = false; });
     make(jumpX,  actY, '▲', () => { this._jumpPending = true; }, () => {});
     make(runX,   actY, 'RUN', () => { this.run  = true;  }, () => { this.run   = false; });
+  }
+
+  /** Short haptic pulse — no-op on desktop or unsupported browsers. */
+  _vibrate(ms = 15) {
+    if ('vibrate' in navigator) navigator.vibrate(ms);
   }
 
   /** Re-layout buttons after a viewport resize. Resets any held state. */
