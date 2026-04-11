@@ -1,11 +1,11 @@
 const WORLD_WIDTH = 4000;
 
 const ITEMS = [
-  { key: 'item_battery',      src: '/images/level-1/battery.png',       label: 'Battery',      x: 420  },
-  { key: 'item_motor',        src: '/images/level-1/motor.png',          label: 'Motor',        x: 950  },
-  { key: 'item_wire',         src: '/images/level-1/wire.png',           label: 'Wire',         x: 1650 },
-  { key: 'item_gear',         src: '/images/level-1/gear.png',           label: 'Gear',         x: 2450 },
-  { key: 'item_circuit_board',src: '/images/level-1/circuit-board.png',  label: 'Circuit Board',x: 3150 },
+  { key: 'item_battery',      src: '/images/level-1/battery.png',        label: 'Battery',       x: 50   },
+  { key: 'item_motor',        src: '/images/level-1/motor.png',          label: 'Motor',         x: 950  },
+  { key: 'item_wire',         src: '/images/level-1/wire.png',           label: 'Wire',          x: 1650 },
+  { key: 'item_gear',         src: '/images/level-1/gear.png',           label: 'Gear',          x: 2650 },
+  { key: 'item_circuit_board',src: '/images/level-1/circuit-board.png',  label: 'Circuit Board', x: 3150 },
 ];
 
 export class Level1Scene extends Phaser.Scene {
@@ -19,6 +19,12 @@ export class Level1Scene extends Phaser.Scene {
       frameHeight: 450,
     });
     ITEMS.forEach(({ key, src }) => this.load.image(key, src));
+
+    this.load.image('rock_small',  '/images/level-1/rock-small.png');
+    this.load.image('rock_medium', '/images/level-1/rock-medium.png');
+    this.load.image('rock_large',  '/images/level-1/rock-large.png');
+    this.load.image('cactus_short', '/images/level-1/cactus-short.png');
+    this.load.image('cactus_tall',  '/images/level-1/cactus-tall.png');
   }
 
   create() {
@@ -187,111 +193,43 @@ export class Level1Scene extends Phaser.Scene {
   _placeRocks(groundY) {
     this.rockGroup = this.physics.add.staticGroup();
     const configs = [
-      { x: 550,  w: 55, h: 38, color: 0xD4A96A },
-      { x: 900,  w: 38, h: 28, color: 0xC49A58 },
-      { x: 1200, w: 75, h: 48, color: 0xBB8A4A },
-      { x: 1550, w: 42, h: 32, color: 0xD9B070 },
-      { x: 1900, w: 68, h: 45, color: 0xD4A96A },
-      { x: 2200, w: 35, h: 25, color: 0xC49A58 },
-      { x: 2500, w: 80, h: 52, color: 0xBB8A4A },
-      { x: 2800, w: 45, h: 33, color: 0xD9B070 },
-      { x: 3100, w: 60, h: 40, color: 0xD4A96A },
-      { x: 3450, w: 50, h: 35, color: 0xC49A58 },
-      { x: 3700, w: 72, h: 46, color: 0xBB8A4A },
+      { x: 550,  key: 'rock_medium' },
+      { x: 900,  key: 'rock_small'  },
+      { x: 1200, key: 'rock_large'  },
+      { x: 1550, key: 'rock_small'  },
+      { x: 1900, key: 'rock_large'  },
+      { x: 2200, key: 'rock_small'  },
+      { x: 2500, key: 'rock_large'  },
+      { x: 2800, key: 'rock_small'  },
+      { x: 3100, key: 'rock_medium' },
+      { x: 3450, key: 'rock_medium' },
+      { x: 3700, key: 'rock_large'  },
     ];
 
-    configs.forEach(({ x, w, h, color }, i) => {
-      const g = this.make.graphics({ x: 0, y: 0, add: false });
-      g.fillStyle(color, 1);
-      g.fillRoundedRect(0, 0, w, h, Math.min(w, h) * 0.25);
-      g.fillStyle(0xFFFFFF, 0.12);
-      g.fillEllipse(w * 0.3, h * 0.3, w * 0.4, h * 0.25);
-      const key = `rock_${i}`;
-      g.generateTexture(key, w, h);
-      g.destroy();
-
-      const rock = this.add.image(x, groundY - h, key).setOrigin(0, 0);
+    configs.forEach(({ x, key }) => {
+      const rock = this.add.image(x, groundY + 20, key).setOrigin(0.5, 1).setScale(0.5);
       this.physics.add.existing(rock, true);
       this.rockGroup.add(rock);
     });
   }
 
-  /** Place desert cacti across the world (replaces trees). */
+  /** Place desert cacti across the world. */
   _placeCacti(groundY) {
-    this._makeCactusTexture('cactus_sm', 10, 55, 18);
-    this._makeCactusTexture('cactus_md', 13, 72, 22);
-    this._makeCactusTexture('cactus_lg', 16, 90, 28);
-
     [
-      { x: 200,  key: 'cactus_md' },
-      { x: 430,  key: 'cactus_sm' },
-      { x: 730,  key: 'cactus_lg' },
-      { x: 1050, key: 'cactus_sm' },
-      { x: 1380, key: 'cactus_md' },
-      { x: 1680, key: 'cactus_lg' },
-      { x: 1820, key: 'cactus_sm' },
-      { x: 2060, key: 'cactus_md' },
-      { x: 2380, key: 'cactus_lg' },
-      { x: 2640, key: 'cactus_sm' },
-      { x: 2920, key: 'cactus_md' },
-      { x: 3200, key: 'cactus_lg' },
-      { x: 3380, key: 'cactus_sm' },
-      { x: 3600, key: 'cactus_md' },
-      { x: 3840, key: 'cactus_lg' },
+      { x: 430,  key: 'cactus_short' },
+      { x: 730,  key: 'cactus_tall'  },
+      { x: 1050, key: 'cactus_short' },
+      { x: 1680, key: 'cactus_tall'  },
+      { x: 1820, key: 'cactus_short' },
+      { x: 2380, key: 'cactus_tall'  },
+      { x: 2640, key: 'cactus_short' },
+      { x: 3200, key: 'cactus_tall'  },
+      { x: 3380, key: 'cactus_short' },
+      { x: 3840, key: 'cactus_tall'  },
     ].forEach(({ x, key }) => {
-      this.add.image(x, groundY, key).setOrigin(0.5, 1);
+      const scale = key === 'cactus_short' ? 0.5 : 1;
+      this.add.image(x, groundY + 20, key).setOrigin(0.5, 1).setScale(scale);
     });
-  }
-
-  /**
-   * Draw a stylised cactus texture: tall trunk with two angled arms.
-   * @param {string} key  Texture cache key
-   * @param {number} tw   Trunk width (px)
-   * @param {number} th   Trunk height (px)
-   * @param {number} aw   Arm width (px) — also controls arm length proportionally
-   */
-  _makeCactusTexture(key, tw, th, aw) {
-    // Canvas: wide enough for arms on both sides + a small margin
-    const armLen = Math.round(aw * 1.6);
-    const cW = tw + armLen * 2 + 8;
-    const cH = th + 4;
-    const cx = cW / 2; // horizontal centre
-    const dark  = 0x2D6B2D;
-    const light = 0x3E8A3E;
-
-    const g = this.make.graphics({ x: 0, y: 0, add: false });
-
-    // Left arm: rises from ~35% down the trunk, angles upward
-    const armTopY  = Math.round(th * 0.30); // where arm tip reaches
-    const armBaseY = Math.round(th * 0.50); // where arm meets trunk
-    // Left arm fills a quadrilateral
-    g.fillStyle(dark, 1);
-    g.fillPoints([
-      new Phaser.Math.Vector2(cx - tw / 2 - armLen, armTopY),
-      new Phaser.Math.Vector2(cx - tw / 2 - armLen + aw, armTopY),
-      new Phaser.Math.Vector2(cx - tw / 2,             armBaseY + aw * 0.5),
-      new Phaser.Math.Vector2(cx - tw / 2,             armBaseY),
-    ], true);
-    // Right arm (mirror)
-    g.fillPoints([
-      new Phaser.Math.Vector2(cx + tw / 2 + armLen - aw, armTopY),
-      new Phaser.Math.Vector2(cx + tw / 2 + armLen,      armTopY),
-      new Phaser.Math.Vector2(cx + tw / 2,               armBaseY),
-      new Phaser.Math.Vector2(cx + tw / 2,               armBaseY + aw * 0.5),
-    ], true);
-
-    // Arm tips (small rounded caps)
-    g.fillCircle(cx - tw / 2 - armLen + aw / 2, armTopY, aw / 2);
-    g.fillCircle(cx + tw / 2 + armLen - aw / 2, armTopY, aw / 2);
-
-    // Main trunk
-    g.fillRect(cx - tw / 2, 0, tw, th);
-    // Trunk highlight
-    g.fillStyle(light, 1);
-    g.fillRect(cx - tw / 2 + 2, 4, Math.max(2, tw * 0.3), th - 8);
-
-    g.generateTexture(key, cW, cH);
-    g.destroy();
   }
 
   /** Place the 5 collectible items on the ground. */
