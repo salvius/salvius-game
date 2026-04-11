@@ -1,3 +1,6 @@
+import Phaser from 'phaser';
+import { TouchControls, TOUCH_HUD_HEIGHT } from '../ui/TouchControls.js';
+
 const WORLD_WIDTH = 4000;
 const RAT_SPEED = 90;
 const INVINCIBILITY_MS = 1500;
@@ -43,20 +46,27 @@ export class Level2Scene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
-    const groundY = height - 60;
+    const hudH = this.sys.game.device.input.touch ? TOUCH_HUD_HEIGHT : 0;
+    const groundY = height - 60 - hudH;
 
     this.cameras.main.setBackgroundColor('#2A2A32');
 
     // World & camera bounds
-    this.physics.world.setBounds(0, 0, WORLD_WIDTH, height);
-    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, height);
+    this.physics.world.setBounds(0, 0, WORLD_WIDTH, height - hudH);
+    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, height - hudH);
 
     // ── Background silhouettes ─────────────────────────────────────────────
     this._buildJunkSilhouettes(width, height, groundY);
-    this.bgFar = this.add.tileSprite(0, 0, width, height, 'junk_far')
+    this.bgFar = this.add.tileSprite(0, 0, width, height - hudH, 'junk_far')
       .setOrigin(0, 0).setScrollFactor(0);
-    this.bgMid = this.add.tileSprite(0, 0, width, height, 'junk_mid')
+    this.bgMid = this.add.tileSprite(0, 0, width, height - hudH, 'junk_mid')
       .setOrigin(0, 0).setScrollFactor(0);
+
+    // ── Touch HUD backing strip ────────────────────────────────────────────
+    if (hudH > 0) {
+      this.hudBacking = this.add.rectangle(0, height - hudH, width, hudH, 0x000000)
+        .setOrigin(0, 0).setScrollFactor(0).setDepth(19);
+    }
 
     // ── Visual ground (dark gravel) ────────────────────────────────────────
     this.add.rectangle(0, groundY, WORLD_WIDTH, 8, 0x3D3D3D).setOrigin(0, 0);
@@ -133,7 +143,7 @@ export class Level2Scene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.towerTrigger, this._onTowerReached, null, this);
 
     // ── Level label (top-centre, fixed to camera) ──────────────────────────
-    this.add.text(this.scale.width / 2, 12, 'THE CITY OF SCRAP', {
+    this.levelTitle = this.add.text(this.scale.width / 2, 12, 'THE CITY OF SCRAP', {
       fontSize: '16px',
       fill: '#AA8844',
       fontFamily: 'monospace',
@@ -143,13 +153,23 @@ export class Level2Scene extends Phaser.Scene {
 
     // ── Camera ────────────────────────────────────────────────────────────
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setDeadzone(300, 200);
+    this.cameras.main.setDeadzone(Math.min(300, width * 0.3), 200);
 
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.playerSpeed = 200;
     this.playerRunSpeed = 400;
+
+    // ── Touch controls (mobile only) ──────────────────────────────────────
+    if (this.sys.game.device.input.touch) {
+      this.touchInput = new TouchControls(this);
+    }
+    this.scale.on('resize', this._onResize, this);
+    this.events.on('shutdown', () => {
+      this.scale.off('resize', this._onResize, this);
+      this.touchInput?.destroy();
+    });
   }
 
   update() {
@@ -174,13 +194,15 @@ export class Level2Scene extends Phaser.Scene {
 
     const player = this.player;
     const onGround = player.body.blocked.down;
-    const left = this.cursors.left.isDown;
-    const right = this.cursors.right.isDown;
-    const running = this.shiftKey.isDown;
+    const left    = this.cursors.left.isDown  || (this.touchInput?.left  ?? false);
+    const right   = this.cursors.right.isDown || (this.touchInput?.right ?? false);
+    const running = this.shiftKey.isDown      || (this.touchInput?.run   ?? false);
     const speed = running ? this.playerRunSpeed : this.playerSpeed;
     const moveAnim = running ? 'run' : 'walk';
 
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && onGround) {
+    const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up)
+                      || (this.touchInput?.consumeJump() ?? false);
+    if (jumpPressed && onGround) {
       player.setVelocityY(-700);
       player.play('jump', true);
     }
@@ -297,6 +319,21 @@ export class Level2Scene extends Phaser.Scene {
     this.time.delayedCall(80 * total + 10, () => {
       if (rat.active) rat.setTexture('rat');
     });
+  }
+
+  _onResize(gameSize) {
+    const { width, height } = gameSize;
+    const hudH = this.touchInput ? TOUCH_HUD_HEIGHT : 0;
+    const effectiveH = height - hudH;
+    this.bgFar?.setSize(width, effectiveH);
+    this.bgMid?.setSize(width, effectiveH);
+    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, effectiveH);
+    this.physics.world.setBounds(0, 0, WORLD_WIDTH, effectiveH);
+    this.cameras.main.setDeadzone(Math.min(300, width * 0.3), 200);
+    this.levelTitle?.setPosition(width / 2, 12);
+    this.lifeIcons?.forEach((icon, i) => icon.setPosition(width - 12 - i * 50, 12));
+    if (this.hudBacking) this.hudBacking.setPosition(0, effectiveH).setSize(width, hudH);
+    this.touchInput?.resize(width, height);
   }
 
   /** Show GAME OVER overlay and restart at Level 1. */

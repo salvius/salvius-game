@@ -18,9 +18,11 @@ const scenes = startScene
 
 new Phaser.Game({
   type: Phaser.AUTO,
-  width: 800,
-  height: 400,
   parent: 'game',
+  scale: {
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
   physics: {
     default: 'arcade',
     arcade: { gravity: { y: 1200 }, debug: false },

@@ -1,5 +1,11 @@
+import Phaser from 'phaser';
+import { TouchControls, TOUCH_HUD_HEIGHT } from '../ui/TouchControls.js';
+
 // Level 3 is a vertical world - camera scrolls upward as Salvius climbs the tower.
 const WORLD_HEIGHT = 3200;
+// Reference canvas width the platform layout was designed for.
+// Platform x/w values are scaled by (actual width / DESIGN_WIDTH) at runtime.
+const DESIGN_WIDTH = 800;
 
 // Platform layout: { x (centre), y (top surface), w (width) }
 // Staggered zigzag, vertical gap 150-180px - safely reachable with jump velocity -700 / gravity 1200.
@@ -93,7 +99,7 @@ export class Level3Scene extends Phaser.Scene {
     this._drawTowerStructure(width, groundY);
 
     // ── Platforms ─────────────────────────────────────────────────────────
-    this._createPlatforms();
+    this._createPlatforms(width);
 
     // ── Warning lights ─────────────────────────────────────────────────────
     this._placeWarningLights(width, groundY);
@@ -140,13 +146,22 @@ export class Level3Scene extends Phaser.Scene {
 
     // ── Colliders ─────────────────────────────────────────────────────────
     this.physics.add.collider(this.player, floor);
-    this.physics.add.collider(this.player, this.platformGroup);
+    // One-way platforms: only resolve when the player is falling/standing
+    // (velocity.y >= 0) and their feet are at or near the platform's top
+    // surface.  This lets the player jump up through a platform without
+    // being blocked by its underside, and prevents platforms whose top is
+    // above the player's head from triggering a collision while the player
+    // is standing on a lower platform.
+    this.physics.add.collider(this.player, this.platformGroup, null,
+      (player, plat) => player.body.velocity.y >= 0 && player.body.bottom <= plat.body.top + 20,
+      this
+    );
 
     // ── Signal beacon at the top of the tower ─────────────────────────────
     this._createBeacon(width);
 
     // ── Level label ───────────────────────────────────────────────────────
-    this.add.text(width / 2, 12, 'THE RADIO TOWER', {
+    this.levelTitle = this.add.text(width / 2, 12, 'THE RADIO TOWER', {
       fontSize: '16px',
       fill: '#5588FF',
       fontFamily: 'monospace',
@@ -163,7 +178,21 @@ export class Level3Scene extends Phaser.Scene {
 
     // ── Camera - follow player, tight vertical tracking ────────────────────
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setDeadzone(100, 80);
+    if (this.sys.game.device.input.touch) {
+      // Tighter vertical deadzone keeps the player closer to centre as they
+      // climb, giving look-ahead above without shifting the initial view so
+      // far up that the ground level disappears behind the HUD.
+      this.cameras.main.setDeadzone(60, 20);
+      this.cameras.main.setFollowOffset(0, -TOUCH_HUD_HEIGHT / 2);
+    } else {
+      this.cameras.main.setDeadzone(100, 80);
+    }
+
+    // ── Touch HUD backing strip ────────────────────────────────────────────
+    if (this.sys.game.device.input.touch) {
+      this.hudBacking = this.add.rectangle(0, height - TOUCH_HUD_HEIGHT, width, TOUCH_HUD_HEIGHT, 0x000000)
+        .setOrigin(0, 0).setScrollFactor(0).setDepth(19);
+    }
 
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -171,6 +200,16 @@ export class Level3Scene extends Phaser.Scene {
     this.playerSpeed = 200;
     this.playerRunSpeed = 400;
     this.wasInAir = false;
+
+    // ── Touch controls (mobile only) ──────────────────────────────────────
+    if (this.sys.game.device.input.touch) {
+      this.touchInput = new TouchControls(this);
+    }
+    this.scale.on('resize', this._onResize, this);
+    this.events.on('shutdown', () => {
+      this.scale.off('resize', this._onResize, this);
+      this.touchInput?.destroy();
+    });
   }
 
   update() {
@@ -184,9 +223,9 @@ export class Level3Scene extends Phaser.Scene {
 
     const player = this.player;
     const onGround = player.body.blocked.down;
-    const left = this.cursors.left.isDown;
-    const right = this.cursors.right.isDown;
-    const running = this.shiftKey.isDown;
+    const left    = this.cursors.left.isDown  || (this.touchInput?.left  ?? false);
+    const right   = this.cursors.right.isDown || (this.touchInput?.right ?? false);
+    const running = this.shiftKey.isDown      || (this.touchInput?.run   ?? false);
     const speed = running ? this.playerRunSpeed : this.playerSpeed;
     const moveAnim = running ? 'run' : 'walk';
 
@@ -196,7 +235,9 @@ export class Level3Scene extends Phaser.Scene {
     }
     this.wasInAir = !onGround;
 
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && onGround) {
+    const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up)
+                      || (this.touchInput?.consumeJump() ?? false);
+    if (jumpPressed && onGround) {
       player.setVelocityY(-700);
       player.play('jump', true);
       this.sound.play('jump_start');
@@ -227,6 +268,22 @@ export class Level3Scene extends Phaser.Scene {
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────
+
+  _onResize(gameSize) {
+    const { width, height } = gameSize;
+    const hudH = this.touchInput ? TOUCH_HUD_HEIGHT : 0;
+    this.bgStars?.setSize(width, WORLD_HEIGHT);
+    if (this.bgCity) {
+      this.bgCity.setSize(width, height);
+      this.bgCity.setPosition(0, WORLD_HEIGHT - height);
+    }
+    this.cameras.main.setBounds(0, -500, width, WORLD_HEIGHT + 500);
+    this.physics.world.setBounds(0, -500, width, WORLD_HEIGHT + 500);
+    this.levelTitle?.setPosition(width / 2, 12);
+    this.heightLabel?.setPosition(width - 10, height - hudH - 4);
+    if (this.hudBacking) this.hudBacking.setPosition(0, height - hudH).setSize(width, hudH);
+    this.touchInput?.resize(width, height);
+  }
 
   /** Star tile texture sized to the viewport, tiled vertically across the world. */
   _buildStarTexture(width, height) {
@@ -334,11 +391,16 @@ export class Level3Scene extends Phaser.Scene {
   /**
    * Create all steel grate platforms as static physics bodies.
    * Each platform draws its own texture to avoid re-use conflicts.
+   * Platform x/w values (designed for DESIGN_WIDTH) are scaled to `width`
+   * so the zigzag layout spans the full viewport on every screen size.
    */
-  _createPlatforms() {
+  _createPlatforms(width) {
     this.platformGroup = this.physics.add.staticGroup();
+    const scale = width / DESIGN_WIDTH;
 
     PLATFORMS.forEach(({ x, y, w }, i) => {
+      const sx = Math.round(x * scale);
+      const sw = Math.max(20, Math.round(w * scale));
       const h = 16;
       const key = `platform_${i}`;
 
@@ -346,25 +408,25 @@ export class Level3Scene extends Phaser.Scene {
         const g = this.make.graphics({ x: 0, y: 0, add: false });
         // Base steel plate
         g.fillStyle(0x3E5060, 1);
-        g.fillRect(0, 0, w, h);
+        g.fillRect(0, 0, sw, h);
         // Grate lines
         g.lineStyle(1, 0x556070, 0.8);
-        for (let gx = 8; gx < w; gx += 10) g.lineBetween(gx, 0, gx, h);
-        g.lineBetween(0, h / 2, w, h / 2);
+        for (let gx = 8; gx < sw; gx += 10) g.lineBetween(gx, 0, gx, h);
+        g.lineBetween(0, h / 2, sw, h / 2);
         // Top highlight
         g.lineStyle(2, 0x7A9AAA, 0.7);
-        g.lineBetween(0, 0, w, 0);
+        g.lineBetween(0, 0, sw, 0);
         // Bottom shadow
         g.lineStyle(2, 0x1E2E38, 0.8);
-        g.lineBetween(0, h - 1, w, h - 1);
-        g.generateTexture(key, w, h);
+        g.lineBetween(0, h - 1, sw, h - 1);
+        g.generateTexture(key, sw, h);
         g.destroy();
       }
 
-      const plat = this.add.image(x, y, key).setOrigin(0.5, 0).setDepth(4);
+      const plat = this.add.image(sx, y, key).setOrigin(0.5, 0).setDepth(4);
       this.physics.add.existing(plat, true);
       // Adjust body to sit on the top surface only (thin collision strip)
-      plat.body.setSize(w, h);
+      plat.body.setSize(sw, h);
       plat.body.setOffset(0, 0);
       this.platformGroup.add(plat);
     });

@@ -28,17 +28,24 @@ The playing style changes from traversing a horizontal world, to a vertical one 
 
 ## Design Plan
 
-* Responsive to device size + mobile/touch screen friendly version where you press and hold on the left or right side of the screen to move and double tap to jump (or something like that).
-* Music for each level
-* Settings:
-  - Toggle sounds on or off
-  - Toggle music on or off
+* Move level instructions in-game.
+* Setting: Toggle sounds on or off, Hide D-pad on mobile
 * Accessability Features
+* Add some og meta data for if people share a link directly
+  - Screenshot image
+* Offline support with progressive web app
+* Music for each level
+- Setting to toggle music on or off
 
 ## Collaborators Welcome
 
 Ideas consistent with the game's themes (recycling, environmental preservation, clean and renewable energy sources, etc.) are welcomed. If you have an idea for an addition or new level let's talk and work on getting it added!
 
-## Notes
+## Development
 
-* Look into https://www.autosprite.io/ and see if it's useful.
+TODO
+
+### ...
+
+* Both desktop and mobile devices supported
+* Offline support as a progressive web app

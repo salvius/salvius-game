@@ -1,3 +1,5 @@
+import { TouchControls, TOUCH_HUD_HEIGHT } from '../ui/TouchControls.js';
+
 const WORLD_WIDTH = 4000;
 
 const ITEMS = [
@@ -31,20 +33,27 @@ export class Level1Scene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
-    const groundY = height - 60;
+    const hudH = this.sys.game.device.input.touch ? TOUCH_HUD_HEIGHT : 0;
+    const groundY = height - 60 - hudH;
 
     this.cameras.main.setBackgroundColor('#E8C87A');
 
     // World & camera bounds
-    this.physics.world.setBounds(0, 0, WORLD_WIDTH, height);
-    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, height);
+    this.physics.world.setBounds(0, 0, WORLD_WIDTH, height - hudH);
+    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, height - hudH);
 
     // ── Parallax background dunes ──────────────────────────────────────────
     this._buildDuneTextures(width, height, groundY);
-    this.bgFarDunes = this.add.tileSprite(0, 0, width, height, 'dunes_far')
+    this.bgFarDunes = this.add.tileSprite(0, 0, width, height - hudH, 'dunes_far')
       .setOrigin(0, 0).setScrollFactor(0);
-    this.bgMidDunes = this.add.tileSprite(0, 0, width, height, 'dunes_mid')
+    this.bgMidDunes = this.add.tileSprite(0, 0, width, height - hudH, 'dunes_mid')
       .setOrigin(0, 0).setScrollFactor(0);
+
+    // ── Touch HUD backing strip ────────────────────────────────────────────
+    if (hudH > 0) {
+      this.hudBacking = this.add.rectangle(0, height - hudH, width, hudH, 0x000000)
+        .setOrigin(0, 0).setScrollFactor(0).setDepth(19);
+    }
 
     // ── Visual ground (spans full world width) ─────────────────────────────
     this.add.rectangle(0, groundY, WORLD_WIDTH, 8, 0xC2A060).setOrigin(0, 0);
@@ -93,7 +102,7 @@ export class Level1Scene extends Phaser.Scene {
     }
 
     // ── Player ────────────────────────────────────────────────────────────
-    this.player = this.physics.add.sprite(width / 4, groundY, 'salvius')
+    this.player = this.physics.add.sprite(250, groundY, 'salvius')
       .setOrigin(0.5, 1)
       .setScale(0.5)
       .setCollideWorldBounds(true)
@@ -117,13 +126,23 @@ export class Level1Scene extends Phaser.Scene {
 
     // ── Camera ────────────────────────────────────────────────────────────
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-    this.cameras.main.setDeadzone(300, 200);
+    this.cameras.main.setDeadzone(Math.min(300, width * 0.3), 200);
 
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.playerSpeed = 200;
     this.playerRunSpeed = 400;
+
+    // ── Touch controls (mobile only) ──────────────────────────────────────
+    if (this.sys.game.device.input.touch) {
+      this.touchInput = new TouchControls(this);
+    }
+    this.scale.on('resize', this._onResize, this);
+    this.events.on('shutdown', () => {
+      this.scale.off('resize', this._onResize, this);
+      this.touchInput?.destroy();
+    });
   }
 
   update() {
@@ -132,13 +151,15 @@ export class Level1Scene extends Phaser.Scene {
 
     const player = this.player;
     const onGround = player.body.blocked.down;
-    const left = this.cursors.left.isDown;
-    const right = this.cursors.right.isDown;
-    const running = this.shiftKey.isDown;
+    const left    = this.cursors.left.isDown  || (this.touchInput?.left  ?? false);
+    const right   = this.cursors.right.isDown || (this.touchInput?.right ?? false);
+    const running = this.shiftKey.isDown      || (this.touchInput?.run   ?? false);
     const speed = running ? this.playerRunSpeed : this.playerSpeed;
     const moveAnim = running ? 'run' : 'walk';
 
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && onGround) {
+    const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up)
+                      || (this.touchInput?.consumeJump() ?? false);
+    if (jumpPressed && onGround) {
       player.setVelocityY(-700);
       player.play('jump', true);
     }
@@ -421,6 +442,19 @@ export class Level1Scene extends Phaser.Scene {
         repeat: -1,
       });
     });
+  }
+
+  _onResize(gameSize) {
+    const { width, height } = gameSize;
+    const hudH = this.touchInput ? TOUCH_HUD_HEIGHT : 0;
+    const effectiveH = height - hudH;
+    this.bgFarDunes?.setSize(width, effectiveH);
+    this.bgMidDunes?.setSize(width, effectiveH);
+    this.cameras.main.setBounds(0, 0, WORLD_WIDTH, effectiveH);
+    this.physics.world.setBounds(0, 0, WORLD_WIDTH, effectiveH);
+    this.cameras.main.setDeadzone(Math.min(300, width * 0.3), 200);
+    if (this.hudBacking) this.hudBacking.setPosition(0, effectiveH).setSize(width, hudH);
+    this.touchInput?.resize(width, height);
   }
 
   /** Sandstone cliff face at the right edge of the world. */
