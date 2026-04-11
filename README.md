@@ -1,29 +1,37 @@
 # Resource Rescue
 
-A retro-style 32-bit game featuring Salvius - an open-source humandoid robot built from recycled materials.
+A retro-style 32-bit game featuring Salvius - an open-source humanoid robot built from recycled materials.
+
+## Levels and Gameplay
+
+## Level 1: The Desert
+
+A simple 2D game interface where the arrow keys can be used to make Salvius move left or right across a landscape, use the up arrow to jump over obstacles, and Shift + Right or Left arrow to run.
+
+Salvius needs to navigate this world to find 5 parts to repair himself:
+
+* A battery
+* A motor
+* A roll of wire
+* A gear
+* A circuit board
+
+Once the 5 items are collected Salvius advances to Level 2.
+
+## Level 2: The City of Scrap
+
+Salvius must get through a junkyard (The City of Scrap), avoiding rats that will chew his wires. Salvius must get to the radio tower at the end of the city to move to level 3. Salvius has 3 lives in this round (represented as batteries) and each encounter with a rat subtracts one (encounters result in an electrical spark from the rat). Rats move back and forth between obstacles such as rocks, Salvius can jump over rats to avoid them.
+
+## Level 3: The Radio Tower
+
+Salvius must jump from point to point to get to the top of a radio tower to broadcast a message.
 
 ## Design Plan
 
-### Phase 1
-
-Build a simple 2D game interface where the arrow keys can be used to make Salvius move left and right across a landscape.
-
-### Phase 2
-
-Add obstacles to the landscape that Salvius needs to jump over, and other items that Salvius can collect.
-
-### Phase 3
-
-Add levels and plot:
-
-* Salvius needs to navigate this world to find parts to repair himself and batteries for energy.
-* Levels are added that each have a new theme.
-
-### Phase 4
-
+* Sounds / music
+* Settings
 * Mobile friendly version where you press and hold on the left or right side of the screen to move and double tap to jump (or something like that).
 * Accessability Features
-* Sounds / music?
 
 ### Collaborators Welcome
 
