@@ -1,12 +1,12 @@
 # Resource Rescue
 
-![Screenshot of Level 1 - Salvius in the desert](images/salvius-level-01.png)
+![Screenshot of Level 1 - Salvius in the desert](public/images/salvius-level-01.png)
 
 A retro 32-bit style game based on Salvius - an open-source humanoid robot built from recycled materials.
 
 ## Levels and Gameplay
 
-## Level 1: The Desert
+### Level 1: The Desert
 
 A simple 2D game interface where the arrow keys can be used to make Salvius move left or right across a landscape, use the up arrow to jump over obstacles, and Shift + Right or Left arrow to run.
 
@@ -20,19 +20,18 @@ Salvius needs to navigate this world to find 5 parts to repair himself:
 
 Once the 5 items are collected Salvius advances to Level 2.
 
-## Level 2: The City of Scrap
+### Level 2: The City of Scrap
 
 Salvius must get through a junkyard (The City of Scrap), avoiding rats that will chew his wires. Salvius must get to the radio tower at the end of the city to move to level 3. Salvius has 3 lives in this round (represented as batteries) and each encounter with a rat subtracts one (encounters result in an electrical spark from the rat). Rats move back and forth between obstacles such as rocks, Salvius can jump over rats to avoid them.
 
-## Level 3: The Radio Tower
+### Level 3: The Radio Tower
 
 The playing style changes from traversing a horizontal world, to a vertical one where Salvius must jump from platform to platform to get to the top of a radio tower to broadcast a message.
 
 ## Design Plan
 
-* Offline support with progressive web app
 * Music for each level
-- Setting to toggle music volume (0 --> off, to 100%, default 15)
+* Setting to toggle music volume (0 --> off, to 100%, default 15)
 
 ## Collaborators Welcome
 

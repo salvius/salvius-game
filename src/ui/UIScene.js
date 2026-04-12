@@ -21,7 +21,8 @@ const C = {
 const PANEL_W         = 400;
 const PANEL_H_CFG     = 375;
 const PANEL_H_INFO    = 400;
-const PANEL_H_CREDITS = 300;
+const PANEL_H_CREDITS = 356;
+const PANEL_H_ABOUT   = 440;
 const PAD             = 24;
 const ICON_BAR_H  = 36;
 const ICON_BAR_PAD= 8;
@@ -533,6 +534,34 @@ export class UIScene extends Phaser.Scene {
     });
     y += lineH;
 
+    // About inline link
+    const aboutInfoTxt = this.add.text(px + PAD, y, '           >  ABOUT / LICENSE', {
+      fontSize: '11px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(aboutInfoTxt);
+    aboutInfoTxt.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, PANEL_W - PAD * 2, lineH),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    aboutInfoTxt.input.cursor = 'pointer';
+    aboutInfoTxt.on('pointerdown', () => { this._swapModal(); this._openAbout(); });
+    aboutInfoTxt.on('pointerover',  () => aboutInfoTxt.setStyle({ fill: C.CYAN_S, fontStyle: 'bold' }));
+    aboutInfoTxt.on('pointerout',   () => {
+      const focused = this._focusItems[this._focusIndex];
+      if (focused?.aboutInfoTxt !== aboutInfoTxt) {
+        aboutInfoTxt.setStyle({ fill: C.GREEN_DIM_S, fontStyle: 'normal' });
+      }
+    });
+    this._focusItems.push({
+      aboutInfoTxt,
+      skipRing: true,
+      x: px + PAD, y, w: PANEL_W - PAD * 2, h: lineH,
+      onFocus: () => aboutInfoTxt.setStyle({ fill: C.CYAN_S, fontStyle: 'bold' }),
+      onBlur:  () => aboutInfoTxt.setStyle({ fill: C.GREEN_DIM_S, fontStyle: 'normal' }),
+      activate: () => { this._swapModal(); this._openAbout(); },
+    });
+    y += lineH;
+
     y += 10;
     this._addSeparator(px, y, PANEL_W, d);
     y += 16;
@@ -666,5 +695,94 @@ export class UIScene extends Phaser.Scene {
     if (!item || item.skipRing) return;
     this._focusRingGfx.lineStyle(2, C.CYAN, 1);
     this._focusRingGfx.strokeRect(item.x - 3, item.y - 3, item.w + 6, item.h + 6);
+  }
+
+  // ── About / License panel ─────────────────────────────────────────────────
+
+  _openAbout() {
+    this._focusItems = [];
+    const { px, py, depth } = this._openModal(PANEL_H_ABOUT);
+    const d = depth + 3;
+    let y = py + PAD;
+
+    const title = this.add.text(px + PANEL_W / 2, y, '◈  ABOUT  ◈', {
+      fontSize: '15px', fill: C.GREEN_S, fontFamily: 'monospace',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(title);
+
+    y += 28;
+    this._addSeparator(px, y, PANEL_W, d);
+    y += 18;
+
+    const lineH = 22;
+    [
+      { label: 'GAME',      value: 'RESOURCE RESCUE  v1.0' },
+      { label: null },
+      { label: 'COPYRIGHT', value: '(C) 2026 GUNTHER COX' },
+      { label: null,        value: 'MIT LICENSE' },
+    ].forEach(({ label, value }) => {
+      if (label === null && value === undefined) { y += 6; return; }
+      const row = label
+        ? `${label.padEnd(11, ' ')}${value ?? ''}`
+        : `           ${value ?? ''}`;
+      const t = this.add.text(px + PAD, y, row, {
+        fontSize: '11px', fill: label ? C.GREEN_S : C.WHITE_S, fontFamily: 'monospace',
+      }).setScrollFactor(0).setDepth(d);
+      this._modalObjects.push(t);
+      y += lineH;
+    });
+
+    y += 10;
+    this._addSeparator(px, y, PANEL_W, d);
+    y += 18;
+
+    const robotLabel = this.add.text(px + PAD, y, 'THE REAL SALVIUS', {
+      fontSize: '11px', fill: C.GREEN_S, fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(robotLabel);
+    y += lineH;
+
+    [
+      '  OPEN SOURCE HUMANOID ROBOT',
+      '  BUILT FROM RECYCLED PARTS (2008)',
+      '  BY GUNTHER COX',
+      '',
+      '  HEIGHT: 6 FT  |  24 DOF  |  BIPED',
+      '  RASPBERRY PI + ARDUINO',
+    ].forEach((text) => {
+      if (!text) { y += 6; return; }
+      const t = this.add.text(px + PAD, y, text, {
+        fontSize: '11px', fill: C.WHITE_S, fontFamily: 'monospace',
+      }).setScrollFactor(0).setDepth(d);
+      this._modalObjects.push(t);
+      y += lineH;
+    });
+
+    y += 8;
+    const robotLink = this.add.text(px + PAD, y, '  > salvius.org', {
+      fontSize: '11px', fill: C.CYAN_S, fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(robotLink);
+    robotLink.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, PANEL_W - PAD * 2, lineH),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    robotLink.input.cursor = 'pointer';
+    robotLink.on('pointerdown', () => window.open('https://salvius.org', '_blank', 'noopener,noreferrer'));
+    robotLink.on('pointerover',  () => robotLink.setAlpha(0.7));
+    robotLink.on('pointerout',   () => robotLink.setAlpha(1));
+    y += lineH;
+
+    y += 10;
+    this._addSeparator(px, y, PANEL_W, d);
+    y += 16;
+
+    this._addButton(px, y, PANEL_W, d, '[ ← BACK ]', () => {
+      this._swapModal();
+      this._openInfo();
+    });
+    y += 38;
+    this._addEscHint(px, y, PANEL_W, d);
+    this._initModalFocus();
   }
 }
