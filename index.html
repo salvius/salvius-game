@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Resource Rescue</title>
+
+    <!-- SEO -->
+    <meta name="description" content="A retro 32-bit style game based on Salvius - an open-source humanoid robot built from recycled materials. Collect parts, avoid hazards, and climb to the top." />
+    <meta name="author" content="Salvius" />
+    <link rel="canonical" href="https://game.salvius.org" />
+    <meta name="theme-color" content="#e8c87a" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://game.salvius.org" />
+    <meta property="og:title" content="Resource Rescue" />
+    <meta property="og:description" content="A retro 32-bit style game based on Salvius - an open-source humanoid robot built from recycled materials. Collect parts, avoid hazards, and climb to the top." />
+    <meta property="og:image" content="https://game.salvius.org/images/salvius-level-01.png" />
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body {
@@ -21,7 +34,8 @@
     </style>
   </head>
   <body>
-    <div id="game"></div>
+    <div id="game" role="application" aria-label="Resource Rescue game"></div>
+    <noscript>This game requires JavaScript to run.</noscript>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

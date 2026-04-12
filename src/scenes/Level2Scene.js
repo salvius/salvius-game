@@ -159,6 +159,7 @@ export class Level2Scene extends Phaser.Scene {
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    this.wasd = this.input.keyboard.addKeys({ up: 'W', left: 'A', right: 'D', space: 'SPACE' });
     this.playerSpeed = 200;
     this.playerRunSpeed = 400;
 
@@ -177,8 +178,10 @@ export class Level2Scene extends Phaser.Scene {
   }
 
   update() {
-    this.bgFar.tilePositionX = this.cameras.main.scrollX * 0.1;
-    this.bgMid.tilePositionX = this.cameras.main.scrollX * 0.25;
+    if (!GameSettings.reducedMotion) {
+      this.bgFar.tilePositionX = this.cameras.main.scrollX * 0.1;
+      this.bgMid.tilePositionX = this.cameras.main.scrollX * 0.25;
+    }
 
     // ── Rat patrol ────────────────────────────────────────────────────────
     for (const rat of this.rats) {
@@ -198,13 +201,15 @@ export class Level2Scene extends Phaser.Scene {
 
     const player = this.player;
     const onGround = player.body.blocked.down;
-    const left    = this.cursors.left.isDown  || (this.touchInput?.left  ?? false);
-    const right   = this.cursors.right.isDown || (this.touchInput?.right ?? false);
+    const left    = this.cursors.left.isDown  || this.wasd.left.isDown  || (this.touchInput?.left  ?? false);
+    const right   = this.cursors.right.isDown || this.wasd.right.isDown || (this.touchInput?.right ?? false);
     const running = this.shiftKey.isDown      || (this.touchInput?.run   ?? false);
     const speed = running ? this.playerRunSpeed : this.playerSpeed;
     const moveAnim = running ? 'run' : 'walk';
 
     const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up)
+                      || Phaser.Input.Keyboard.JustDown(this.wasd.up)
+                      || Phaser.Input.Keyboard.JustDown(this.wasd.space)
                       || (this.touchInput?.consumeJump() ?? false);
     if (jumpPressed && onGround) {
       player.setVelocityY(-700);
@@ -284,26 +289,34 @@ export class Level2Scene extends Phaser.Scene {
     this._blinkRatSpark(rat);
 
     // Camera shake
-    this.cameras.main.shake(200, 0.015);
+    if (!GameSettings.reducedMotion) this.cameras.main.shake(200, 0.015);
 
     if (this.lives <= 0) {
       this._showGameOver();
       return;
     }
 
-    // Invincibility flash
+    // Invincibility flash - static dim when reduced motion is on, animated otherwise
     this.isInvincible = true;
-    this.tweens.add({
-      targets: player,
-      alpha: 0.3,
-      duration: 150,
-      yoyo: true,
-      repeat: 4,
-      onComplete: () => {
+    if (GameSettings.reducedMotion) {
+      player.setAlpha(0.4);
+      this.time.delayedCall(INVINCIBILITY_MS, () => {
         player.setAlpha(1);
         this.isInvincible = false;
-      },
-    });
+      });
+    } else {
+      this.tweens.add({
+        targets: player,
+        alpha: 0.3,
+        duration: 150,
+        yoyo: true,
+        repeat: 4,
+        onComplete: () => {
+          player.setAlpha(1);
+          this.isInvincible = false;
+        },
+      });
+    }
   }
 
   /** Blink a rat between its normal and spark texture several times. */

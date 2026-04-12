@@ -18,7 +18,7 @@ const C = {
 
 // Panel dimensions
 const PANEL_W     = 400;
-const PANEL_H_CFG = 340;
+const PANEL_H_CFG = 375;
 const PANEL_H_INFO= 400;
 const PAD         = 24;
 const ICON_BAR_H  = 36;
@@ -28,6 +28,8 @@ export class UIScene extends Phaser.Scene {
   constructor() {
     super({ key: 'UIScene', active: false });
     this._modalObjects = [];
+    this._focusItems = [];
+    this._focusNavHandlers = [];
   }
 
   create() {
@@ -59,7 +61,7 @@ export class UIScene extends Phaser.Scene {
     const barY  = ICON_BAR_PAD;
     const depth = 30;
 
-    // Bar backing — thin green-bordered rectangle
+    // Bar backing - thin green-bordered rectangle
     const barBg = this.add.graphics()
       .setScrollFactor(0)
       .setDepth(depth);
@@ -68,7 +70,7 @@ export class UIScene extends Phaser.Scene {
     barBg.lineStyle(1, C.GREEN, 0.8);
     barBg.strokeRect(barX, barY, barW, barH);
 
-    // Gear button — full hit zone on the background graphic
+    // Gear button - full hit zone on the background graphic
     const gearZoneX = barX + 4, gearZoneY = barY + 2, gearZoneW = 46, gearZoneH = barH - 4;
     const gearBg = this.add.graphics().setScrollFactor(0).setDepth(depth);
     this._drawGlow(gearBg, gearZoneX, gearZoneY, gearZoneW, gearZoneH);
@@ -94,7 +96,7 @@ export class UIScene extends Phaser.Scene {
       fontSize: '18px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1);
 
-    // Book button — full hit zone on the background graphic
+    // Book button - full hit zone on the background graphic
     const bookZoneX = barX + 57, bookZoneY = barY + 2, bookZoneW = 46, bookZoneH = barH - 4;
     const bookBg = this.add.graphics().setScrollFactor(0).setDepth(depth);
     this._drawGlow(bookBg, bookZoneX, bookZoneY, bookZoneW, bookZoneH);
@@ -130,7 +132,7 @@ export class UIScene extends Phaser.Scene {
   // ── Modal helpers ─────────────────────────────────────────────────────────
 
   _getGameScene() {
-    // Pass false to get ALL scenes (active + paused) — a paused game scene
+    // Pass false to get ALL scenes (active + paused) - a paused game scene
     // is not returned by getScenes(true), which would prevent it from ever
     // being resumed after a modal closes.
     return this.scene.manager
@@ -153,7 +155,7 @@ export class UIScene extends Phaser.Scene {
       .setOrigin(0, 0).setScrollFactor(0).setDepth(depth);
     this._modalObjects.push(dim);
 
-    // Panel position — centered
+    // Panel position - centered
     const px = (sw - PANEL_W) / 2;
     const py = (sh - height) / 2;
 
@@ -211,6 +213,13 @@ export class UIScene extends Phaser.Scene {
   }
 
   _closeModal() {
+    // Remove keyboard navigation handlers added by _initModalFocus
+    for (const [event, fn] of this._focusNavHandlers) {
+      this.input.keyboard.off(event, fn);
+    }
+    this._focusNavHandlers = [];
+    this._focusItems = [];
+
     this._modalObjects.forEach(o => o.destroy());
     this._modalObjects = [];
     this._modalOpen = false;
@@ -222,6 +231,7 @@ export class UIScene extends Phaser.Scene {
   // ── Settings panel ────────────────────────────────────────────────────────
 
   _openSettings() {
+    this._focusItems = [];
     const { px, py, depth } = this._openModal(PANEL_H_CFG);
     const d = depth + 3;
     let y = py + PAD;
@@ -250,12 +260,24 @@ export class UIScene extends Phaser.Scene {
       GameSettings.setHaptics(val);
     });
 
+    y += 14;
+    this._addSeparator(px, y, PANEL_W, d);
+    y += 18;
+
+    // Reduced motion row
+    y = this._addToggleRow(px, y, PANEL_W, d, 'REDUCED MOTION', GameSettings.reducedMotion, (val) => {
+      GameSettings.setReducedMotion(val);
+    });
+
     y += 20;
     this._addSeparator(px, y, PANEL_W, d);
     y += 18;
 
     // Close button
     this._addCloseButton(px, y, PANEL_W, d);
+    y += 38;
+    this._addEscHint(px, y, PANEL_W, d);
+    this._initModalFocus();
   }
 
   /**
@@ -357,6 +379,15 @@ export class UIScene extends Phaser.Scene {
       bg.on('pointerout',   () => txt.setAlpha(1));
 
       this._modalObjects.push(bg, txt);
+      this._focusItems.push({
+        x: btnX, y: btnY, w: btnW, h: btnH,
+        activate: () => {
+          if (active) return;
+          onChange(isOn);
+          this._closeModal();
+          this._openSettings();
+        },
+      });
     };
 
     renderBtn(true);   // ON
@@ -389,11 +420,16 @@ export class UIScene extends Phaser.Scene {
     bg.on('pointerout',   () => txt.setAlpha(1));
 
     this._modalObjects.push(bg, txt);
+    this._focusItems.push({
+      x: btnX, y, w: btnW, h: btnH,
+      activate: () => this._closeModal(),
+    });
   }
 
   // ── Info / manual panel ───────────────────────────────────────────────────
 
   _openInfo() {
+    this._focusItems = [];
     const { px, py, depth } = this._openModal(PANEL_H_INFO);
     const d = depth + 3;
     let y = py + PAD;
@@ -411,12 +447,12 @@ export class UIScene extends Phaser.Scene {
       { label: 'UNIT',     value: 'SALVIUS-7' },
       { label: 'MISSION',  value: 'RECOVER COMPONENTS' },
       { label: null },
-      { label: 'CONTROLS', value: '← → MOVE  |  SHIFT RUN' },
-      { label: null,        value: '↑ JUMP' },
+      { label: 'CONTROLS', value: '← → / A D  MOVE  |  SHIFT  RUN' },
+      { label: null,        value: '↑ / W / SPACE  JUMP' },
       { label: null },
-      { label: 'LVL 1',   value: 'DESERT — COLLECT 5 PARTS' },
-      { label: 'LVL 2',   value: 'JUNKYARD — REACH RADIO TOWER' },
-      { label: 'LVL 3',   value: 'TOWER CLIMB — REACH BEACON' },
+      { label: 'LVL 1',   value: 'DESERT - COLLECT 5 PARTS' },
+      { label: 'LVL 2',   value: 'JUNKYARD - REACH RADIO TOWER' },
+      { label: 'LVL 3',   value: 'TOWER CLIMB - REACH BEACON' },
       { label: null },
       { label: 'TOUCH',   value: '◀ ▶ ▲ RUN  BUTTONS ON-SCREEN' },
     ];
@@ -442,5 +478,63 @@ export class UIScene extends Phaser.Scene {
     y += 16;
 
     this._addCloseButton(px, y, PANEL_W, d);
+    y += 38;
+    this._addEscHint(px, y, PANEL_W, d);
+    this._initModalFocus();
+  }
+
+  // ── Accessibility helpers ──────────────────────────────────────────────
+
+  /** Dim footnote below the close button reminding players to press ESC. */
+  _addEscHint(px, y, panelW, depth) {
+    const hint = this.add.text(px + panelW / 2, y, '[ ESC ]  CLOSE', {
+      fontSize: '10px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(depth);
+    this._modalObjects.push(hint);
+  }
+
+  /**
+   * Installs Tab / Shift+Tab / Enter / Space keyboard navigation for the
+   * open modal. Call at the end of _openSettings / _openInfo after all
+   * focusable items have been pushed to this._focusItems.
+   */
+  _initModalFocus() {
+    this._focusIndex = 0;
+    this._focusRingGfx = this.add.graphics().setScrollFactor(0).setDepth(40);
+    this._modalObjects.push(this._focusRingGfx);
+    this._drawFocusRing();
+
+    const onTab = (e) => {
+      if (e.shiftKey) {
+        this._focusIndex = (this._focusIndex - 1 + this._focusItems.length) % this._focusItems.length;
+      } else {
+        this._focusIndex = (this._focusIndex + 1) % this._focusItems.length;
+      }
+      this._drawFocusRing();
+    };
+
+    const onActivate = () => {
+      this._focusItems[this._focusIndex]?.activate();
+    };
+
+    this.input.keyboard.on('keydown-TAB', onTab);
+    this.input.keyboard.on('keydown-ENTER', onActivate);
+    this.input.keyboard.on('keydown-SPACE', onActivate);
+
+    this._focusNavHandlers = [
+      ['keydown-TAB', onTab],
+      ['keydown-ENTER', onActivate],
+      ['keydown-SPACE', onActivate],
+    ];
+  }
+
+  /** Draws the cyan focus ring around the currently focused item. */
+  _drawFocusRing() {
+    if (!this._focusRingGfx || !this._focusItems.length) return;
+    const item = this._focusItems[this._focusIndex];
+    if (!item) return;
+    this._focusRingGfx.clear();
+    this._focusRingGfx.lineStyle(2, C.CYAN, 1);
+    this._focusRingGfx.strokeRect(item.x - 3, item.y - 3, item.w + 6, item.h + 6);
   }
 }

@@ -64,7 +64,7 @@ export class TouchControls {
         .setScrollFactor(0)
         .setDepth(DEPTH);
 
-      // Draw at local (0,0) — the object's own origin is already at (x,y).
+      // Draw at local (0,0) - the object's own origin is already at (x,y).
       g.fillStyle(0xffffff, FILL_A);
       g.fillCircle(0, 0, R);
       g.lineStyle(1.5, 0xffffff, 0.55);
@@ -117,7 +117,7 @@ export class TouchControls {
     make(runX,   actY, 'RUN', () => { this.run  = true;  }, () => { this.run   = false; });
   }
 
-  /** Short haptic pulse — no-op on desktop or unsupported browsers. */
+  /** Short haptic pulse - no-op on desktop or unsupported browsers. */
   _vibrate(ms = 15) {
     if (!GameSettings.haptics) return;
     if ('vibrate' in navigator) navigator.vibrate(ms);

@@ -198,6 +198,7 @@ export class Level3Scene extends Phaser.Scene {
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    this.wasd = this.input.keyboard.addKeys({ up: 'W', left: 'A', right: 'D', space: 'SPACE' });
     this.playerSpeed = 200;
     this.playerRunSpeed = 400;
     this.wasInAir = false;
@@ -218,7 +219,9 @@ export class Level3Scene extends Phaser.Scene {
 
   update() {
     // Slow star drift (vertical parallax)
-    this.bgStars.tilePositionY = this.cameras.main.scrollY * 0.05;
+    if (!GameSettings.reducedMotion) {
+      this.bgStars.tilePositionY = this.cameras.main.scrollY * 0.05;
+    }
 
     // City silhouette shows only when near the ground
     this.bgCity.tilePositionY = 0;
@@ -227,8 +230,8 @@ export class Level3Scene extends Phaser.Scene {
 
     const player = this.player;
     const onGround = player.body.blocked.down;
-    const left    = this.cursors.left.isDown  || (this.touchInput?.left  ?? false);
-    const right   = this.cursors.right.isDown || (this.touchInput?.right ?? false);
+    const left    = this.cursors.left.isDown  || this.wasd.left.isDown  || (this.touchInput?.left  ?? false);
+    const right   = this.cursors.right.isDown || this.wasd.right.isDown || (this.touchInput?.right ?? false);
     const running = this.shiftKey.isDown      || (this.touchInput?.run   ?? false);
     const speed = running ? this.playerRunSpeed : this.playerSpeed;
     const moveAnim = running ? 'run' : 'walk';
@@ -240,6 +243,8 @@ export class Level3Scene extends Phaser.Scene {
     this.wasInAir = !onGround;
 
     const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up)
+                      || Phaser.Input.Keyboard.JustDown(this.wasd.up)
+                      || Phaser.Input.Keyboard.JustDown(this.wasd.space)
                       || (this.touchInput?.consumeJump() ?? false);
     if (jumpPressed && onGround) {
       player.setVelocityY(-700);
@@ -444,14 +449,16 @@ export class Level3Scene extends Phaser.Scene {
     const cx = width / 2;
     [groundY * 0.75, groundY * 0.50, groundY * 0.25].forEach(y => {
       const light = this.add.circle(cx, y, 5, 0xFF2222).setDepth(6);
-      this.tweens.add({
-        targets: light,
-        alpha: 0.1,
-        duration: 900,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
+      if (!GameSettings.reducedMotion) {
+        this.tweens.add({
+          targets: light,
+          alpha: 0.1,
+          duration: 900,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
     });
   }
 
@@ -462,44 +469,50 @@ export class Level3Scene extends Phaser.Scene {
    */
   _createBeacon(width) {
     const cx = width / 2;
-    const by = 32; // y position — just above the antenna arms
+    const by = 32; // y position - just above the antenna arms
 
     // Outer glow halo
     const halo = this.add.circle(cx, by, 30, 0x44DDFF, 0.12).setDepth(7);
-    this.tweens.add({
-      targets: halo,
-      alpha: { from: 0.05, to: 0.38 },
-      scaleX: { from: 0.85, to: 1.25 },
-      scaleY: { from: 0.85, to: 1.25 },
-      duration: 900,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
+    if (!GameSettings.reducedMotion) {
+      this.tweens.add({
+        targets: halo,
+        alpha: { from: 0.05, to: 0.38 },
+        scaleX: { from: 0.85, to: 1.25 },
+        scaleY: { from: 0.85, to: 1.25 },
+        duration: 900,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
 
     // Mid ring
     const ring = this.add.circle(cx, by, 17, 0x88EEFF, 0.45).setDepth(7);
-    this.tweens.add({
-      targets: ring,
-      alpha: { from: 0.2, to: 0.75 },
-      duration: 650,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
+    if (!GameSettings.reducedMotion) {
+      this.tweens.add({
+        targets: ring,
+        alpha: { from: 0.2, to: 0.75 },
+        duration: 650,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
 
     // Bright core
     const core = this.add.circle(cx, by, 7, 0xFFFFFF, 1).setDepth(8);
-    this.tweens.add({
-      targets: core,
-      alpha: { from: 0.65, to: 1.0 },
-      scaleX: { from: 0.8, to: 1.2 },
-      scaleY: { from: 0.8, to: 1.2 },
-      duration: 420,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
+    if (!GameSettings.reducedMotion) {
+      this.tweens.add({
+        targets: core,
+        alpha: { from: 0.65, to: 1.0 },
+        scaleX: { from: 0.8, to: 1.2 },
+        scaleY: { from: 0.8, to: 1.2 },
+        duration: 420,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    }
 
     // Invisible physics body the player must touch to trigger the win
     const beacon = this.add.rectangle(cx, by, 60, 60, 0x000000, 0);

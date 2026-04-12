@@ -132,6 +132,7 @@ export class Level1Scene extends Phaser.Scene {
     // ── Input ─────────────────────────────────────────────────────────────
     this.cursors = this.input.keyboard.createCursorKeys();
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    this.wasd = this.input.keyboard.addKeys({ up: 'W', left: 'A', right: 'D', space: 'SPACE' });
     this.playerSpeed = 200;
     this.playerRunSpeed = 400;
 
@@ -150,18 +151,22 @@ export class Level1Scene extends Phaser.Scene {
   }
 
   update() {
-    this.bgFarDunes.tilePositionX = this.cameras.main.scrollX * 0.1;
-    this.bgMidDunes.tilePositionX = this.cameras.main.scrollX * 0.25;
+    if (!GameSettings.reducedMotion) {
+      this.bgFarDunes.tilePositionX = this.cameras.main.scrollX * 0.1;
+      this.bgMidDunes.tilePositionX = this.cameras.main.scrollX * 0.25;
+    }
 
     const player = this.player;
     const onGround = player.body.blocked.down;
-    const left    = this.cursors.left.isDown  || (this.touchInput?.left  ?? false);
-    const right   = this.cursors.right.isDown || (this.touchInput?.right ?? false);
+    const left    = this.cursors.left.isDown  || this.wasd.left.isDown  || (this.touchInput?.left  ?? false);
+    const right   = this.cursors.right.isDown || this.wasd.right.isDown || (this.touchInput?.right ?? false);
     const running = this.shiftKey.isDown      || (this.touchInput?.run   ?? false);
     const speed = running ? this.playerRunSpeed : this.playerSpeed;
     const moveAnim = running ? 'run' : 'walk';
 
     const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up)
+                      || Phaser.Input.Keyboard.JustDown(this.wasd.up)
+                      || Phaser.Input.Keyboard.JustDown(this.wasd.space)
                       || (this.touchInput?.consumeJump() ?? false);
     if (jumpPressed && onGround) {
       player.setVelocityY(-700);
@@ -275,14 +280,16 @@ export class Level1Scene extends Phaser.Scene {
       img.refreshBody();
 
       // Bob tween is purely visual - the static body stays at the original Y
-      this.tweens.add({
-        targets: img,
-        y: groundY - 38,
-        duration: 900,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
+      if (!GameSettings.reducedMotion) {
+        this.tweens.add({
+          targets: img,
+          y: groundY - 38,
+          duration: 900,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
     });
   }
 
