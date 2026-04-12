@@ -20,7 +20,7 @@ docker compose exec app npm install <package>
 ```
 
 The container mounts the workspace at `/app` with a volume, so file edits on
-the host are reflected immediately — no rebuild required unless `package.json`
+the host are reflected immediately - no rebuild required unless `package.json`
 changes.
 
 > **Why:** Node and npm are not guaranteed to be available on 

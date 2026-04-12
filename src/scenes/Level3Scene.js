@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { TouchControls, TOUCH_HUD_HEIGHT } from '../ui/TouchControls.js';
 import { GameSettings } from '../settings/GameSettings.js';
+import { CREDITS } from '../data/credits.js';
 
 // Level 3 is a vertical world - camera scrolls upward as Salvius climbs the tower.
 const WORLD_HEIGHT = 3200;
@@ -578,5 +579,56 @@ export class Level3Scene extends Phaser.Scene {
       fill: '#888888',
       fontFamily: 'monospace',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(22);
+
+    // ── Scrolling credits ────────────────────────────────────────────────
+    // Build the credits text block just below the visible screen, then
+    // tween it upward so it scrolls into view after a short pause.
+    const lineH   = 22;
+    const creditLines = CREDITS.map(({ label, value, pad = 11 }) => {
+      if (label === null && value === undefined) return '';
+      return label
+        ? `${label.padEnd(pad, ' ')}${value ?? ''}`
+        : `           ${value ?? ''}`;
+    });
+
+    // Insert a header above the entries
+    const headerLines = ['', '─'.repeat(28), '  C R E D I T S', '─'.repeat(28), ''];
+    const allLines    = [...headerLines, ...creditLines, '', ''];
+    const blockH      = allLines.length * lineH;
+
+    const creditsText = this.add.text(
+      width / 2,
+      height + 20,          // start just below the visible screen
+      allLines.join('\n'),
+      {
+        fontSize:    '13px',
+        fill:        '#00FF41',
+        fontFamily:  'monospace',
+        align:       'center',
+        lineSpacing: lineH - 13,
+      },
+    ).setOrigin(0.5, 0).setScrollFactor(0).setDepth(22);
+
+    const scrollDuration = 9000;
+    const startY  = height + 20;
+    const targetY = -(blockH + 20);
+
+    if (GameSettings.reducedMotion) {
+      // Show credits statically, centred on screen
+      creditsText.setY(height / 2 + 100);
+    } else {
+      const scroll = () => {
+        creditsText.setY(startY);
+        this.tweens.add({
+          targets:  creditsText,
+          y:        targetY,
+          duration: scrollDuration,
+          ease:     'Linear',
+          onComplete: scroll,   // loop forever
+        });
+      };
+
+      this.time.delayedCall(2200, scroll);
+    }
   }
 }

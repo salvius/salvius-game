@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GameSettings } from '../settings/GameSettings.js';
+import { CREDITS } from '../data/credits.js';
 
 // ── HUD color palette ───────────────────────────────────────────────────────
 const C = {
@@ -17,10 +18,11 @@ const C = {
 };
 
 // Panel dimensions
-const PANEL_W     = 400;
-const PANEL_H_CFG = 375;
-const PANEL_H_INFO= 400;
-const PAD         = 24;
+const PANEL_W         = 400;
+const PANEL_H_CFG     = 375;
+const PANEL_H_INFO    = 400;
+const PANEL_H_CREDITS = 300;
+const PAD             = 24;
 const ICON_BAR_H  = 36;
 const ICON_BAR_PAD= 8;
 
@@ -38,6 +40,14 @@ export class UIScene extends Phaser.Scene {
     // Close any open modal with Escape
     this.input.keyboard.on('keydown-ESC', () => {
       if (this._modalOpen) this._closeModal();
+    });
+
+    // Open Settings / Docs from gameplay
+    this.input.keyboard.on('keydown-P', () => {
+      if (!this._modalOpen) this._openSettings();
+    });
+    this.input.keyboard.on('keydown-H', () => {
+      if (!this._modalOpen) this._openInfo();
     });
 
     // Re-build icon bar on resize so it stays anchored to top-right
@@ -230,7 +240,7 @@ export class UIScene extends Phaser.Scene {
 
   // ── Settings panel ────────────────────────────────────────────────────────
 
-  _openSettings() {
+  _openSettings(restoreFocusIndex = 0) {
     this._focusItems = [];
     const { px, py, depth } = this._openModal(PANEL_H_CFG);
     const d = depth + 3;
@@ -277,7 +287,7 @@ export class UIScene extends Phaser.Scene {
     this._addCloseButton(px, y, PANEL_W, d);
     y += 38;
     this._addEscHint(px, y, PANEL_W, d);
-    this._initModalFocus();
+    this._initModalFocus(restoreFocusIndex);
   }
 
   /**
@@ -369,11 +379,13 @@ export class UIScene extends Phaser.Scene {
         new Phaser.Geom.Rectangle(btnX, btnY, btnW, btnH),
         Phaser.Geom.Rectangle.Contains,
       );
+      const focusIdx = this._focusItems.length;
+
       bg.on('pointerdown', () => {
         if (active) return;
         onChange(isOn);
         this._closeModal();
-        this._openSettings();
+        this._openSettings(focusIdx);
       });
       bg.on('pointerover',  () => txt.setAlpha(0.7));
       bg.on('pointerout',   () => txt.setAlpha(1));
@@ -385,7 +397,7 @@ export class UIScene extends Phaser.Scene {
           if (active) return;
           onChange(isOn);
           this._closeModal();
-          this._openSettings();
+          this._openSettings(focusIdx);
         },
       });
     };
@@ -397,6 +409,13 @@ export class UIScene extends Phaser.Scene {
   }
 
   _addCloseButton(px, y, panelW, depth) {
+    this._addButton(px, y, panelW, depth, '[ ✕  CLOSE ]', () => this._closeModal());
+  }
+
+  /**
+   * Generic centred navigation button. Registers as a focusable item.
+   */
+  _addButton(px, y, panelW, depth, label, action) {
     const btnW = 120;
     const btnH = 28;
     const btnX = px + (panelW - btnW) / 2;
@@ -407,7 +426,7 @@ export class UIScene extends Phaser.Scene {
     bg.lineStyle(1.5, C.GREEN, 0.9);
     bg.strokeRect(btnX, y, btnW, btnH);
 
-    const txt = this.add.text(btnX + btnW / 2, y + btnH / 2, '[ ✕  CLOSE ]', {
+    const txt = this.add.text(btnX + btnW / 2, y + btnH / 2, label, {
       fontSize: '12px', fill: C.GREEN_S, fontFamily: 'monospace',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1);
 
@@ -415,15 +434,26 @@ export class UIScene extends Phaser.Scene {
       new Phaser.Geom.Rectangle(btnX, y, btnW, btnH),
       Phaser.Geom.Rectangle.Contains,
     );
-    bg.on('pointerdown', () => this._closeModal());
+    bg.on('pointerdown', action);
     bg.on('pointerover',  () => txt.setAlpha(0.65));
     bg.on('pointerout',   () => txt.setAlpha(1));
 
     this._modalObjects.push(bg, txt);
-    this._focusItems.push({
-      x: btnX, y, w: btnW, h: btnH,
-      activate: () => this._closeModal(),
-    });
+    this._focusItems.push({ x: btnX, y, w: btnW, h: btnH, activate: action });
+  }
+
+  /**
+   * Tears down the current modal panel and focus state, ready to open a new
+   * panel — without resuming the game scene (avoids a single-frame resume
+   * flash when navigating between Info and Credits).
+   */
+  _swapModal() {
+    for (const [ev, fn] of this._focusNavHandlers) this.input.keyboard.off(ev, fn);
+    this._focusNavHandlers = [];
+    this._focusItems = [];
+    this._modalObjects.forEach(o => o.destroy());
+    this._modalObjects = [];
+    this._modalOpen = false;
   }
 
   // ── Info / manual panel ───────────────────────────────────────────────────
@@ -473,6 +503,36 @@ export class UIScene extends Phaser.Scene {
       y += lineH;
     });
 
+    // Credits inline link
+    y += 6;
+    const creditsTxt = this.add.text(px + PAD, y, '           ★  VIEW CREDITS', {
+      fontSize: '11px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(creditsTxt);
+    creditsTxt.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, PANEL_W - PAD * 2, lineH),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    creditsTxt.input.cursor = 'pointer';
+    creditsTxt.on('pointerdown', () => { this._swapModal(); this._openCredits(); });
+    creditsTxt.on('pointerover',  () => creditsTxt.setStyle({ fill: C.CYAN_S, fontStyle: 'bold' }));
+    creditsTxt.on('pointerout',   () => {
+      // Restore dim unless keyboard focus is currently on this item
+      const focused = this._focusItems[this._focusIndex];
+      if (focused?.creditsTxt !== creditsTxt) {
+        creditsTxt.setStyle({ fill: C.GREEN_DIM_S, fontStyle: 'normal' });
+      }
+    });
+    this._focusItems.push({
+      creditsTxt,
+      skipRing: true,
+      x: px + PAD, y, w: PANEL_W - PAD * 2, h: lineH,
+      onFocus: () => creditsTxt.setStyle({ fill: C.CYAN_S, fontStyle: 'bold' }),
+      onBlur:  () => creditsTxt.setStyle({ fill: C.GREEN_DIM_S, fontStyle: 'normal' }),
+      activate: () => { this._swapModal(); this._openCredits(); },
+    });
+    y += lineH;
+
     y += 10;
     this._addSeparator(px, y, PANEL_W, d);
     y += 16;
@@ -483,11 +543,56 @@ export class UIScene extends Phaser.Scene {
     this._initModalFocus();
   }
 
+  // ── Credits panel ─────────────────────────────────────────────────────────
+
+  _openCredits() {
+    this._focusItems = [];
+    const { px, py, depth } = this._openModal(PANEL_H_CREDITS);
+    const d = depth + 3;
+    let y = py + PAD;
+
+    const title = this.add.text(px + PANEL_W / 2, y, '◈  CREDITS  ◈', {
+      fontSize: '15px', fill: C.GREEN_S, fontFamily: 'monospace',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(title);
+
+    y += 28;
+    this._addSeparator(px, y, PANEL_W, d);
+    y += 18;
+
+    const lines = CREDITS;
+
+    const lineH = 22;
+    lines.forEach(({ label, value, pad = 11 }) => {
+      if (label === null && value === undefined) { y += 6; return; }
+      const row = label
+        ? `${label.padEnd(pad, ' ')}${value ?? ''}`
+        : `           ${value ?? ''}`;
+      const t = this.add.text(px + PAD, y, row, {
+        fontSize: '11px', fill: label ? C.GREEN_S : C.WHITE_S, fontFamily: 'monospace',
+      }).setScrollFactor(0).setDepth(d);
+      this._modalObjects.push(t);
+      y += lineH;
+    });
+
+    y += 10;
+    this._addSeparator(px, y, PANEL_W, d);
+    y += 16;
+
+    this._addButton(px, y, PANEL_W, d, '[ ← BACK ]', () => {
+      this._swapModal();
+      this._openInfo();
+    });
+    y += 38;
+    this._addEscHint(px, y, PANEL_W, d);
+    this._initModalFocus();
+  }
+
   // ── Accessibility helpers ──────────────────────────────────────────────
 
   /** Dim footnote below the close button reminding players to press ESC. */
   _addEscHint(px, y, panelW, depth) {
-    const hint = this.add.text(px + panelW / 2, y, '[ ESC ]  CLOSE', {
+    const hint = this.add.text(px + panelW / 2, y, '[ ESC ]  CLOSE  |  ↑↓←→ / TAB  NAVIGATE', {
       fontSize: '10px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(depth);
     this._modalObjects.push(hint);
@@ -498,8 +603,8 @@ export class UIScene extends Phaser.Scene {
    * open modal. Call at the end of _openSettings / _openInfo after all
    * focusable items have been pushed to this._focusItems.
    */
-  _initModalFocus() {
-    this._focusIndex = 0;
+  _initModalFocus(startIndex = 0) {
+    this._focusIndex = Math.min(startIndex, Math.max(0, this._focusItems.length - 1));
     this._focusRingGfx = this.add.graphics().setScrollFactor(0).setDepth(40);
     this._modalObjects.push(this._focusRingGfx);
     this._drawFocusRing();
@@ -513,27 +618,52 @@ export class UIScene extends Phaser.Scene {
       this._drawFocusRing();
     };
 
+    const onNext = () => {
+      this._focusIndex = (this._focusIndex + 1) % this._focusItems.length;
+      this._drawFocusRing();
+    };
+
+    const onPrev = () => {
+      this._focusIndex = (this._focusIndex - 1 + this._focusItems.length) % this._focusItems.length;
+      this._drawFocusRing();
+    };
+
     const onActivate = () => {
       this._focusItems[this._focusIndex]?.activate();
     };
 
-    this.input.keyboard.on('keydown-TAB', onTab);
+    this.input.keyboard.on('keydown-TAB',   onTab);
+    this.input.keyboard.on('keydown-DOWN',  onNext);
+    this.input.keyboard.on('keydown-RIGHT', onNext);
+    this.input.keyboard.on('keydown-UP',    onPrev);
+    this.input.keyboard.on('keydown-LEFT',  onPrev);
     this.input.keyboard.on('keydown-ENTER', onActivate);
     this.input.keyboard.on('keydown-SPACE', onActivate);
 
     this._focusNavHandlers = [
-      ['keydown-TAB', onTab],
+      ['keydown-TAB',   onTab],
+      ['keydown-DOWN',  onNext],
+      ['keydown-RIGHT', onNext],
+      ['keydown-UP',    onPrev],
+      ['keydown-LEFT',  onPrev],
       ['keydown-ENTER', onActivate],
       ['keydown-SPACE', onActivate],
     ];
   }
 
-  /** Draws the cyan focus ring around the currently focused item. */
+  /** Draws the cyan focus ring around the currently focused item.
+   * Items with `skipRing: true` use onFocus/onBlur callbacks for
+   * their own visual state instead of the box outline. */
   _drawFocusRing() {
     if (!this._focusRingGfx || !this._focusItems.length) return;
-    const item = this._focusItems[this._focusIndex];
-    if (!item) return;
+    // Notify all items of focus/blur so text-style items can update themselves
+    this._focusItems.forEach((item, i) => {
+      if (i === this._focusIndex) item.onFocus?.();
+      else item.onBlur?.();
+    });
     this._focusRingGfx.clear();
+    const item = this._focusItems[this._focusIndex];
+    if (!item || item.skipRing) return;
     this._focusRingGfx.lineStyle(2, C.CYAN, 1);
     this._focusRingGfx.strokeRect(item.x - 3, item.y - 3, item.w + 6, item.h + 6);
   }
