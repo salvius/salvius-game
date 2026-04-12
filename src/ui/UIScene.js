@@ -505,7 +505,7 @@ export class UIScene extends Phaser.Scene {
 
     // Credits inline link
     y += 6;
-    const creditsTxt = this.add.text(px + PAD, y, '           ★  VIEW CREDITS', {
+    const creditsTxt = this.add.text(px + PAD, y, '           >  VIEW CREDITS', {
       fontSize: '11px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
     }).setScrollFactor(0).setDepth(d);
     this._modalObjects.push(creditsTxt);
