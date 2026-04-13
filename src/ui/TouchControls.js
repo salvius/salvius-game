@@ -58,7 +58,7 @@ export class TouchControls {
     const jumpX = w - 65;
     const runX  = w - 150;
 
-    const make = (x, y, label, onDown, onUp) => {
+    const make = (x, y, label, onDown, onUp, vibrateMs = 8) => {
       // Position the Graphics at the button centre so Phaser scales from there.
       const g = this.scene.add.graphics({ x, y })
         .setScrollFactor(0)
@@ -91,7 +91,7 @@ export class TouchControls {
           duration: 70,
           ease: 'Quad.easeIn',
         });
-        this._vibrate(15);
+        this._vibrate(vibrateMs);
       });
 
       const release = () => {
@@ -113,7 +113,7 @@ export class TouchControls {
 
     make(leftX,  padY, '◀', () => { this.left  = true;  }, () => { this.left  = false; });
     make(rightX, padY, '▶', () => { this.right = true;  }, () => { this.right = false; });
-    make(jumpX,  actY, '▲', () => { this._jumpPending = true; }, () => {});
+    make(jumpX,  actY, '▲', () => { this._jumpPending = true; }, () => {}, 15);
     make(runX,   actY, 'RUN', () => { this.run  = true;  }, () => { this.run   = false; });
   }
 
