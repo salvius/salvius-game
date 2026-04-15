@@ -33,7 +33,7 @@ const PLATFORMS = [
 
   { x: 600, y: WORLD_HEIGHT - 2340, w: 110 },
   { x: 350, y: WORLD_HEIGHT - 2430, w: 120 },
-  { x: 150, y: WORLD_HEIGHT - 2590, w: 60 },
+  { x: 200, y: WORLD_HEIGHT - 2590, w: 80 },
   { x: 440, y: WORLD_HEIGHT - 2680, w: 40 },
 
   { x: 620, y: WORLD_HEIGHT - 2830, w: 90 },
