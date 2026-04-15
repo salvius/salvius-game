@@ -701,5 +701,30 @@ export class Level3Scene extends Phaser.Scene {
 
       this.time.delayedCall(2200, scroll);
     }
+
+    // ── Play Again button ────────────────────────────────────────────────
+    const btnW = 160, btnH = 32;
+    const btnX = width / 2 - btnW / 2;
+    const btnY = height - 56;
+
+    const btnBg = this.add.graphics().setScrollFactor(0).setDepth(23);
+    btnBg.fillStyle(0x000000, 0.85);
+    btnBg.fillRect(btnX, btnY, btnW, btnH);
+    btnBg.lineStyle(1.5, 0x00FF41, 0.9);
+    btnBg.strokeRect(btnX, btnY, btnW, btnH);
+
+    const btnTxt = this.add.text(width / 2, btnY + btnH / 2, '[ ▶  PLAY AGAIN ]', {
+      fontSize: '13px',
+      fill: '#00FF41',
+      fontFamily: 'monospace',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(24);
+
+    btnBg.setInteractive(
+      new Phaser.Geom.Rectangle(btnX, btnY, btnW, btnH),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    btnBg.on('pointerdown', () => this.scene.start('Level1Scene'));
+    btnBg.on('pointerover', () => btnTxt.setAlpha(0.65));
+    btnBg.on('pointerout',  () => btnTxt.setAlpha(1));
   }
 }
