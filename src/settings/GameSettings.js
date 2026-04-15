@@ -19,6 +19,13 @@ function readBool(key, defaultValue) {
   return raw === 'true';
 }
 
+function readInt(key, defaultValue) {
+  const raw = localStorage.getItem(key);
+  if (raw === null) return defaultValue;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) ? n : defaultValue;
+}
+
 function detectReducedMotion() {
   return typeof window !== 'undefined' &&
     (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false);
@@ -29,6 +36,8 @@ export const GameSettings = {
   haptics:       readBool('haptics', true),
   // Defaults to the OS prefers-reduced-motion preference when no saved value exists.
   reducedMotion: readBool('reducedMotion', detectReducedMotion()),
+  musicVolume:   readInt('musicVolume', 40),
+  musicPlaying:  readBool('musicPlaying', true),
 
   setSounds(value) {
     this.sounds = Boolean(value);
@@ -43,5 +52,15 @@ export const GameSettings = {
   setReducedMotion(value) {
     this.reducedMotion = Boolean(value);
     localStorage.setItem('reducedMotion', String(this.reducedMotion));
+  },
+
+  setMusicVolume(value) {
+    this.musicVolume = Math.max(0, Math.min(100, Math.round(Number(value))));
+    localStorage.setItem('musicVolume', String(this.musicVolume));
+  },
+
+  setMusicPlaying(value) {
+    this.musicPlaying = Boolean(value);
+    localStorage.setItem('musicPlaying', String(this.musicPlaying));
   },
 };

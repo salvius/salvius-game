@@ -43,6 +43,9 @@ export class Level2Scene extends Phaser.Scene {
     if (!this.cache.audio.exists('rat_squeak')) {
       this.load.audio('rat_squeak', '/audio/rat-squeak.wav');
     }
+    if (!this.cache.audio.exists('music_level2')) {
+      this.load.audio('music_level2', '/music/02-city-of-scrap.wav');
+    }
   }
 
   create() {
@@ -171,7 +174,13 @@ export class Level2Scene extends Phaser.Scene {
     this.events.on('shutdown', () => {
       this.scale.off('resize', this._onResize, this);
       this.touchInput?.destroy();
+      this.music?.stop();
+      this.music = null;
     });
+
+    // ── Background music ───────────────────────────────────────────────────
+    this.music = this.sound.add('music_level2', { loop: true, volume: GameSettings.musicVolume / 100 });
+    if (GameSettings.musicPlaying) this.music.play();
 
     // ── Persistent UI overlay ──────────────────────────────────────────────
     if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');

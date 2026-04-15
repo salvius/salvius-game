@@ -30,6 +30,9 @@ export class Level1Scene extends Phaser.Scene {
     this.load.image('cactus_tall',  '/images/level-1/cactus-tall.png');
 
     this.load.audio('pick_up_object', '/audio/pick-up-object.wav');
+    if (!this.cache.audio.exists('music_level1')) {
+      this.load.audio('music_level1', '/music/01-alkali-plains.wav');
+    }
   }
 
   create() {
@@ -144,7 +147,13 @@ export class Level1Scene extends Phaser.Scene {
     this.events.on('shutdown', () => {
       this.scale.off('resize', this._onResize, this);
       this.touchInput?.destroy();
+      this.music?.stop();
+      this.music = null;
     });
+
+    // ── Background music ───────────────────────────────────────────────────
+    this.music = this.sound.add('music_level1', { loop: true, volume: GameSettings.musicVolume / 100 });
+    if (GameSettings.musicPlaying) this.music.play();
 
     // ── Persistent UI overlay ──────────────────────────────────────────────
     if (!this.scene.isActive('UIScene')) this.scene.launch('UIScene');

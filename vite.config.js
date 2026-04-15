@@ -10,6 +10,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,wav}'],
+        globIgnores: ['music/**'],
       },
       manifest: {
         name: 'Resource Rescue',

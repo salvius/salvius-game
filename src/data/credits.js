@@ -22,5 +22,5 @@ export const CREDITS = [
   { label: 'BETA TEST',   value: 'BETH COX' },
   { label: null },
   { label: 'COPYRIGHT', value: '(C) 2026 GUNTHER COX', pad: 10 },
-  { label: null,        value: 'MIT LICENSE' },
+  { label: null },
 ];
