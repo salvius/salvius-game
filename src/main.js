@@ -9,7 +9,7 @@ import { UIScene } from './ui/UIScene.js';
 // and provides the user gesture needed to unlock Web Audio + haptics.
 const scenes = [BootScene, Level1Scene, Level2Scene, Level3Scene, UIScene];
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   scale: {
@@ -22,3 +22,13 @@ new Phaser.Game({
   },
   scene: scenes,
 });
+
+// On mobile browsers (particularly iOS Safari) the orientationchange event
+// fires before the browser has finished updating the layout viewport.
+// Phaser's built-in handler therefore reads stale dimensions and skips the
+// resize, leaving the canvas locked at the previous orientation's size.
+// Forcing a refresh after a short delay guarantees Phaser re-reads the
+// settled dimensions once the browser has caught up.
+const forceResize = () => setTimeout(() => game.scale.refresh(), 200);
+window.addEventListener('orientationchange', forceResize);
+screen.orientation?.addEventListener('change', forceResize);

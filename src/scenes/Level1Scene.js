@@ -39,6 +39,7 @@ export class Level1Scene extends Phaser.Scene {
     const { width, height } = this.scale;
     const hudH = this.sys.game.device.input.touch ? TOUCH_HUD_HEIGHT : 0;
     const groundY = height - 60 - hudH;
+    this.groundY = groundY;
 
     this.cameras.main.setBackgroundColor('#E8C87A');
 
@@ -60,12 +61,12 @@ export class Level1Scene extends Phaser.Scene {
     }
 
     // ── Visual ground (spans full world width) ─────────────────────────────
-    this.add.rectangle(0, groundY, WORLD_WIDTH, 8, 0xC2A060).setOrigin(0, 0);
-    this.add.rectangle(0, groundY + 8, WORLD_WIDTH, height - groundY - 8, 0x9A7040).setOrigin(0, 0);
+    this.groundLine = this.add.rectangle(0, groundY, WORLD_WIDTH, 8, 0xC2A060).setOrigin(0, 0);
+    this.groundFill = this.add.rectangle(0, groundY + 8, WORLD_WIDTH, height - groundY - 8, 0x9A7040).setOrigin(0, 0);
 
     // ── Physics floor (invisible, for collision) ───────────────────────────
-    const floor = this.add.rectangle(0, groundY, WORLD_WIDTH, 10, 0x000000, 0).setOrigin(0, 0);
-    this.physics.add.existing(floor, true);
+    this.floor = this.add.rectangle(0, groundY, WORLD_WIDTH, 10, 0x000000, 0).setOrigin(0, 0);
+    this.physics.add.existing(this.floor, true);
 
     // ── Decorative world elements ──────────────────────────────────────────
     this._placeCacti(groundY);
@@ -118,7 +119,7 @@ export class Level1Scene extends Phaser.Scene {
     this._placeClouds();
 
     // ── Colliders / overlaps ───────────────────────────────────────────────
-    this.physics.add.collider(this.player, floor);
+    this.physics.add.collider(this.player, this.floor);
     this.physics.add.collider(this.player, this.rockGroup);
     this.physics.add.overlap(this.player, this.itemGroup, this._onCollect, null, this);
 
@@ -256,6 +257,7 @@ export class Level1Scene extends Phaser.Scene {
 
   /** Place desert cacti across the world. */
   _placeCacti(groundY) {
+    this.cactiImages = [];
     [
       { x: 430,  key: 'cactus_short' },
       { x: 730,  key: 'cactus_tall'  },
@@ -269,7 +271,8 @@ export class Level1Scene extends Phaser.Scene {
       { x: 3840, key: 'cactus_tall'  },
     ].forEach(({ x, key }) => {
       const scale = key === 'cactus_short' ? 0.5 : 1;
-      this.add.image(x, groundY + 20, key).setOrigin(0.5, 1).setScale(scale);
+      const img = this.add.image(x, groundY + 20, key).setOrigin(0.5, 1).setScale(scale);
+      this.cactiImages.push(img);
     });
   }
 
@@ -475,6 +478,42 @@ export class Level1Scene extends Phaser.Scene {
     this.cameras.main.setDeadzone(Math.min(300, width * 0.3), 200);
     if (this.hudBacking) this.hudBacking.setPosition(0, effectiveH).setSize(width, hudH);
     this.touchInput?.resize(width, height);
+
+    const newGroundY = height - 60 - hudH;
+    if (this.groundY !== undefined && newGroundY !== this.groundY) {
+      const deltaY = newGroundY - this.groundY;
+      this.groundY = newGroundY;
+
+      this.groundLine?.setPosition(0, newGroundY);
+      this.groundFill?.setPosition(0, newGroundY + 8);
+
+      if (this.floor) this.floor.body.reset(this.floor.x, newGroundY);
+
+      this.rockGroup?.getChildren().forEach(rock => {
+        rock.body.reset(rock.x, rock.y + deltaY);
+      });
+
+      this.cactiImages?.forEach(img => img.setY(img.y + deltaY));
+
+      this.itemGroup?.getChildren().forEach(item => {
+        this.tweens.killTweensOf(item);
+        item.body.reset(item.x, item.y + deltaY);
+        if (!GameSettings.reducedMotion) {
+          this.tweens.add({
+            targets: item,
+            y: item.y - 10,
+            duration: 900,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+          });
+        }
+      });
+
+      if (this.player?.body.blocked.down) {
+        this.player.body.reset(this.player.x, this.player.y + deltaY);
+      }
+    }
   }
 
   /** Sandstone cliff face at the right edge of the world. */

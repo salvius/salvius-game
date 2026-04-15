@@ -69,6 +69,7 @@ export class Level3Scene extends Phaser.Scene {
     const groundY = WORLD_HEIGHT - 60;
 
     this.levelComplete = false;
+    this._lastResizeWidth = width;
 
     // Deep night sky
     this.cameras.main.setBackgroundColor('#050510');
@@ -81,8 +82,8 @@ export class Level3Scene extends Phaser.Scene {
 
     // ── Sky gradient rectangles ────────────────────────────────────────────
     // Bottom portion of sky is slightly lighter (light pollution from city below)
-    this.add.rectangle(0, 0, width, WORLD_HEIGHT * 0.6, 0x050510).setOrigin(0, 0).setDepth(0);
-    this.add.rectangle(0, WORLD_HEIGHT * 0.6, width, WORLD_HEIGHT * 0.4, 0x0A0A1A).setOrigin(0, 0).setDepth(0);
+    this.skyRect1 = this.add.rectangle(0, 0, width, WORLD_HEIGHT * 0.6, 0x050510).setOrigin(0, 0).setDepth(0);
+    this.skyRect2 = this.add.rectangle(0, WORLD_HEIGHT * 0.6, width, WORLD_HEIGHT * 0.4, 0x0A0A1A).setOrigin(0, 0).setDepth(0);
 
     // ── Star field (vertical tile across full world height) ────────────────
     this._buildStarTexture(width, height);
@@ -95,8 +96,8 @@ export class Level3Scene extends Phaser.Scene {
       .setOrigin(0, 0).setScrollFactor(0).setDepth(2);
 
     // ── Ground floor (safety net - catches any full fall) ──────────────────
-    this.add.rectangle(0, groundY, width, 8, 0x1A1A2E).setOrigin(0, 0).setDepth(3);
-    this.add.rectangle(0, groundY + 8, width, WORLD_HEIGHT - groundY - 8, 0x0F0F1E).setOrigin(0, 0).setDepth(3);
+    this.groundRect1 = this.add.rectangle(0, groundY, width, 8, 0x1A1A2E).setOrigin(0, 0).setDepth(3);
+    this.groundRect2 = this.add.rectangle(0, groundY + 8, width, WORLD_HEIGHT - groundY - 8, 0x0F0F1E).setOrigin(0, 0).setDepth(3);
     const floor = this.add.rectangle(0, groundY, width, 10, 0x000000, 0).setOrigin(0, 0);
     this.physics.add.existing(floor, true);
 
@@ -302,11 +303,68 @@ export class Level3Scene extends Phaser.Scene {
     this.heightLabel?.setPosition(width - 10, height - hudH - 4);
     if (this.hudBacking) this.hudBacking.setPosition(0, height - hudH).setSize(width, hudH);
     this.touchInput?.resize(width, height);
+
+    if (this._lastResizeWidth !== width) {
+      this._lastResizeWidth = width;
+      const scale = width / DESIGN_WIDTH;
+      const cx = width / 2;
+
+      this.skyRect1?.setSize(width, WORLD_HEIGHT * 0.6);
+      this.skyRect2?.setSize(width, WORLD_HEIGHT * 0.4);
+      this.groundRect1?.setSize(width, 8);
+      this.groundRect2?.setSize(width, WORLD_HEIGHT - (WORLD_HEIGHT - 60) - 8);
+
+      this.towerImage?.destroy();
+      if (this.textures.exists('tower_structure')) this.textures.remove('tower_structure');
+      this._drawTowerStructure(width, WORLD_HEIGHT - 60);
+
+      this._buildStarTexture(width, height);
+      this.bgStars?.setTexture('stars_l3').setSize(width, WORLD_HEIGHT);
+
+      this._buildCitySilhouette(width, height, WORLD_HEIGHT - 60);
+      this.bgCity?.setTexture('city_base').setSize(width, height).setPosition(0, WORLD_HEIGHT - height);
+
+      this.platformGroup?.getChildren().forEach((plat, i) => {
+        const { x, y, w } = PLATFORMS[i];
+        const newX = Math.round(x * scale);
+        const newW = Math.max(20, Math.round(w * scale));
+        const h = 16;
+        const key = `platform_${i}`;
+
+        // Regenerate the platform texture at the new width so both the visual
+        // and the physics body match the current scale.
+        if (this.textures.exists(key)) this.textures.remove(key);
+        const g = this.make.graphics({ x: 0, y: 0, add: false });
+        g.fillStyle(0x3E5060, 1);
+        g.fillRect(0, 0, newW, h);
+        g.lineStyle(1, 0x556070, 0.8);
+        for (let gx = 8; gx < newW; gx += 10) g.lineBetween(gx, 0, gx, h);
+        g.lineBetween(0, h / 2, newW, h / 2);
+        g.lineStyle(2, 0x7A9AAA, 0.7);
+        g.lineBetween(0, 0, newW, 0);
+        g.lineStyle(2, 0x1E2E38, 0.8);
+        g.lineBetween(0, h - 1, newW, h - 1);
+        g.generateTexture(key, newW, h);
+        g.destroy();
+
+        plat.setTexture(key);
+        plat.body.setSize(newW, h);
+        plat.body.setOffset(0, 0);
+        plat.body.reset(newX, y);
+      });
+      // Flush updated static-body positions into the physics broadphase.
+      this.platformGroup?.refresh();
+
+      this.warningLights?.forEach(light => light.setX(cx));
+
+      this.beaconElements?.forEach(el => el.setX(cx));
+      if (this.beaconTrigger) this.beaconTrigger.body.reset(cx, this.beaconTrigger.y);
+    }
   }
 
   /** Star tile texture sized to the viewport, tiled vertically across the world. */
   _buildStarTexture(width, height) {
-    if (this.textures.exists('stars_l3')) return;
+    if (this.textures.exists('stars_l3')) this.textures.remove('stars_l3');
     const g = this.make.graphics({ x: 0, y: 0, add: false });
     for (let i = 0; i < 120; i++) {
       const sx = Math.abs(Math.sin(i * 137.5) * width);
@@ -321,7 +379,7 @@ export class Level3Scene extends Phaser.Scene {
 
   /** City skyline silhouette strip rendered at the base of the world. */
   _buildCitySilhouette(width, height, groundY) {
-    if (this.textures.exists('city_base')) return;
+    if (this.textures.exists('city_base')) this.textures.remove('city_base');
     const g = this.make.graphics({ x: 0, y: 0, add: false });
     // Dark background fill
     g.fillStyle(0x0A0A1A, 1);
@@ -404,7 +462,7 @@ export class Level3Scene extends Phaser.Scene {
     g.generateTexture('tower_structure', width, totalH);
     g.destroy();
 
-    this.add.image(0, 0, 'tower_structure').setOrigin(0, 0).setDepth(3);
+    this.towerImage = this.add.image(0, 0, 'tower_structure').setOrigin(0, 0).setDepth(3);
   }
 
   /**
@@ -457,8 +515,10 @@ export class Level3Scene extends Phaser.Scene {
    */
   _placeWarningLights(width, groundY) {
     const cx = width / 2;
+    this.warningLights = [];
     [groundY * 0.75, groundY * 0.50, groundY * 0.25].forEach(y => {
       const light = this.add.circle(cx, y, 5, 0xFF2222).setDepth(6);
+      this.warningLights.push(light);
       if (!GameSettings.reducedMotion) {
         this.tweens.add({
           targets: light,
@@ -528,6 +588,8 @@ export class Level3Scene extends Phaser.Scene {
     const beacon = this.add.rectangle(cx, by, 60, 60, 0x000000, 0);
     this.physics.add.existing(beacon, true);
     this.physics.add.overlap(this.player, beacon, this._onBroadcastReached, null, this);
+    this.beaconElements = [halo, ring, core];
+    this.beaconTrigger = beacon;
   }
 
   /** Called when Salvius touches the signal beacon at the top. */

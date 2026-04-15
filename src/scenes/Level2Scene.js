@@ -73,12 +73,12 @@ export class Level2Scene extends Phaser.Scene {
     }
 
     // ── Visual ground (dark gravel) ────────────────────────────────────────
-    this.add.rectangle(0, groundY, WORLD_WIDTH, 8, 0x3D3D3D).setOrigin(0, 0);
-    this.add.rectangle(0, groundY + 8, WORLD_WIDTH, height - groundY - 8, 0x2A2A2A).setOrigin(0, 0);
+    this.groundLine = this.add.rectangle(0, groundY, WORLD_WIDTH, 8, 0x3D3D3D).setOrigin(0, 0);
+    this.groundFill = this.add.rectangle(0, groundY + 8, WORLD_WIDTH, height - groundY - 8, 0x2A2A2A).setOrigin(0, 0);
 
-    // ── Physics floor ──────────────────────────────────────────────────────
-    const floor = this.add.rectangle(0, groundY, WORLD_WIDTH, 10, 0x000000, 0).setOrigin(0, 0);
-    this.physics.add.existing(floor, true);
+    // ── Physics floor ──────────────────────────────────────────────────
+    this.floor = this.add.rectangle(0, groundY, WORLD_WIDTH, 10, 0x000000, 0).setOrigin(0, 0);
+    this.physics.add.existing(this.floor, true);
 
     // ── Junkyard decorations ───────────────────────────────────────────────
     this._placeScrapPiles(groundY);
@@ -135,7 +135,7 @@ export class Level2Scene extends Phaser.Scene {
     this._placeSmogClouds();
 
     // ── Colliders / overlaps ───────────────────────────────────────────────
-    this.physics.add.collider(this.player, floor);
+    this.physics.add.collider(this.player, this.floor);
     this.physics.add.collider(this.player, this.debrisGroup);
     this.physics.add.overlap(this.player, this.ratGroup, this._onRatHit, null, this);
 
@@ -359,6 +359,32 @@ export class Level2Scene extends Phaser.Scene {
     this.lifeIcons?.forEach((icon, i) => icon.setPosition(12 + i * 50, 12));
     if (this.hudBacking) this.hudBacking.setPosition(0, effectiveH).setSize(width, hudH);
     this.touchInput?.resize(width, height);
+
+    const newGroundY = height - 60 - hudH;
+    if (this.groundY !== undefined && newGroundY !== this.groundY) {
+      const deltaY = newGroundY - this.groundY;
+      this.groundY = newGroundY;
+
+      this.groundLine?.setPosition(0, newGroundY);
+      this.groundFill?.setPosition(0, newGroundY + 8);
+
+      if (this.floor) this.floor.body.reset(this.floor.x, newGroundY);
+
+      this.debrisGroup?.getChildren().forEach(piece => {
+        piece.body.reset(piece.x, piece.y + deltaY);
+      });
+
+      this.scrapPiles?.forEach(img => img.setY(img.y + deltaY));
+
+      for (const rat of (this.rats ?? [])) {
+        rat.groundY += deltaY;
+        rat.sprite.body.reset(rat.sprite.x, rat.groundY);
+      }
+
+      if (this.player?.body.blocked.down) {
+        this.player.body.reset(this.player.x, this.player.y + deltaY);
+      }
+    }
   }
 
   /** Show GAME OVER overlay and restart at Level 1. */
@@ -476,6 +502,7 @@ export class Level2Scene extends Phaser.Scene {
 
   /** Place tall scrap-pile decorations. */
   _placeScrapPiles(groundY) {
+    this.scrapPiles = [];
     [
       { x: 100,  key: 'junkpile_medium' },
       { x: 410,  key: 'junkpile_large'  },
@@ -491,7 +518,8 @@ export class Level2Scene extends Phaser.Scene {
       { x: 3220, key: 'junkpile_large'  },
     ].forEach(({ x, key }) => {
       const scale = 0.4;
-      this.add.image(x, groundY + 20, key).setOrigin(0.5, 1).setScale(scale).setDepth(2);
+      const img = this.add.image(x, groundY + 20, key).setOrigin(0.5, 1).setScale(scale).setDepth(2);
+      this.scrapPiles.push(img);
     });
   }
 

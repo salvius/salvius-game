@@ -66,7 +66,7 @@ The following accessibility features are implemented:
 
 The following items were identified during an audit but are out of scope for this release:
 
-- **Screen reader announcements** - the game renders entirely on an HTML5 canvas; Phaser provides no built-in ARIA live-region support. Meaningful screen-reader access would require a separate text-based game transcript layer
+- **Screen reader announcements** - the game renders entirely on an HTML5 canvas; Phaser provides no built-in ARIA live-region support. Meaningful screen-reader access will require a separate text-based game transcript layer
 - **Gamepad / controller input** - the Web Gamepad API is not currently integrated
 - **Color-blind mode** - no alternative color palette is provided; the primary HUD color (`#00FF41` green) has not been tested with common color-vision deficiency simulators
 - **Large text / UI scaling** - HUD font sizes are fixed; no zoom or text-size setting exists
