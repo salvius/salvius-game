@@ -1,24 +1,13 @@
 import Phaser from 'phaser';
+import { BootScene } from './scenes/BootScene.js';
 import { Level1Scene } from './scenes/Level1Scene.js';
 import { Level2Scene } from './scenes/Level2Scene.js';
 import { Level3Scene } from './scenes/Level3Scene.js';
 import { UIScene } from './ui/UIScene.js';
 
-const sceneMap = {
-  '#level1': Level1Scene,
-  '#level2': Level2Scene,
-  '#level3': Level3Scene,
-};
-
-const allScenes = [Level1Scene, Level2Scene, Level3Scene];
-const hash = window.location.hash.toLowerCase();
-const startScene = sceneMap[hash];
-const levelScenes = startScene
-  ? [startScene, ...allScenes.filter(s => s !== startScene)]
-  : allScenes;
-
-// UIScene always comes last so it renders on top of game scenes
-const scenes = [...levelScenes, UIScene];
+// BootScene is always first — it shows the loading bar, handles hash routing,
+// and provides the user gesture needed to unlock Web Audio + haptics.
+const scenes = [BootScene, Level1Scene, Level2Scene, Level3Scene, UIScene];
 
 new Phaser.Game({
   type: Phaser.AUTO,
