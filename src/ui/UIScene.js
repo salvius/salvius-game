@@ -22,7 +22,7 @@ const PANEL_W         = 400;
 const PANEL_H_CFG     = 454;
 const PANEL_H_INFO    = 480;
 const PANEL_H_CREDITS = 370;
-const PANEL_H_MUSIC   = 454;
+const PANEL_H_MUSIC   = 498;
 
 const TRACKS = [
   { key: 'music_level1', src: '/music/01-alkali-plains.wav',
@@ -31,6 +31,8 @@ const TRACKS = [
     name: 'City of Scrap',               num: '02' },
   { key: 'music_level3', src: '/music/03-frequency-of-the-forgotten.wav',
     name: 'Frequency of the Forgotten',  num: '03' },
+  { key: 'music_level4', src: '/music/04-breath-of-a-dying-star.wav',
+    name: 'Breath of a Dying Star',       num: '04' },
 ];
 const PANEL_H_ABOUT   = 454;
 const PAD             = 24;
