@@ -22,7 +22,7 @@ const PANEL_W         = 400;
 const PANEL_H_CFG     = 454;
 const PANEL_H_INFO    = 480;
 const PANEL_H_CREDITS = 370;
-const PANEL_H_MUSIC   = 498;
+const PANEL_H_MUSIC   = 650;
 
 const TRACKS = [
   { key: 'music_level1', src: '/music/01-alkali-plains.wav',
@@ -671,6 +671,18 @@ export class UIScene extends Phaser.Scene {
   }
 
   _stopMusicPreview() {
+    // Visualizer cleanup — must happen before the timer and texture are gone
+    this._vizTimer?.remove(false);
+    this._vizTimer = null;
+    if (this.textures.exists('__viz__')) this.textures.remove('__viz__');
+    if (this._analyser) {
+      try { this._analyser.disconnect(); } catch { /* already disconnected */ }
+      this._analyser = null;
+    }
+    this._freqData = null;
+    this._progressTimer?.remove(false);
+    this._progressTimer = null;
+    this._progressTimeTxt = null;
     (this._musicPreviewSounds ?? []).forEach(s => { s?.stop(); s?.destroy(); });
     this._musicPreviewSounds = [];
     this._cdSpinTween?.stop();
@@ -917,6 +929,8 @@ export class UIScene extends Phaser.Scene {
       this._drawFocusRing();
     };
 
+    // UP/DOWN always move focus; LEFT/RIGHT delegate to handleArrow when the
+    // focused item is a slider (e.g. the seek bar), otherwise move focus.
     const onNext = () => {
       this._focusIndex = (this._focusIndex + 1) % this._focusItems.length;
       this._drawFocusRing();
@@ -927,24 +941,38 @@ export class UIScene extends Phaser.Scene {
       this._drawFocusRing();
     };
 
+    const onRight = () => {
+      const cur = this._focusItems[this._focusIndex];
+      if (cur?.handleArrow?.('right')) return; // truthy = handled
+      this._focusIndex = (this._focusIndex + 1) % this._focusItems.length;
+      this._drawFocusRing();
+    };
+
+    const onLeft = () => {
+      const cur = this._focusItems[this._focusIndex];
+      if (cur?.handleArrow?.('left')) return; // truthy = handled
+      this._focusIndex = (this._focusIndex - 1 + this._focusItems.length) % this._focusItems.length;
+      this._drawFocusRing();
+    };
+
     const onActivate = () => {
       this._focusItems[this._focusIndex]?.activate();
     };
 
     this.input.keyboard.on('keydown-TAB',   onTab);
     this.input.keyboard.on('keydown-DOWN',  onNext);
-    this.input.keyboard.on('keydown-RIGHT', onNext);
+    this.input.keyboard.on('keydown-RIGHT', onRight);
     this.input.keyboard.on('keydown-UP',    onPrev);
-    this.input.keyboard.on('keydown-LEFT',  onPrev);
+    this.input.keyboard.on('keydown-LEFT',  onLeft);
     this.input.keyboard.on('keydown-ENTER', onActivate);
     this.input.keyboard.on('keydown-SPACE', onActivate);
 
     this._focusNavHandlers = [
       ['keydown-TAB',   onTab],
       ['keydown-DOWN',  onNext],
-      ['keydown-RIGHT', onNext],
+      ['keydown-RIGHT', onRight],
       ['keydown-UP',    onPrev],
-      ['keydown-LEFT',  onPrev],
+      ['keydown-LEFT',  onLeft],
       ['keydown-ENTER', onActivate],
       ['keydown-SPACE', onActivate],
     ];
@@ -973,6 +1001,26 @@ export class UIScene extends Phaser.Scene {
     this._focusItems = [];
     this._musicPreviewSounds = [];
     this._currentPreviewTrackIdx = -1;
+    if (this._shuffleEnabled === undefined) this._shuffleEnabled = false;
+
+    // Set up Web Audio analyser as a side-tap on the master volume node.
+    // The analyser output is intentionally left unconnected — it only reads
+    // frequency data; the normal playback chain is unaffected.
+    this._analyser = null;
+    this._freqData = null;
+    this._vizTimer  = null;
+    try {
+      const _audioCtx = this.sound.context;
+      const _mvn      = this.sound.masterVolumeNode;
+      if (_audioCtx && _mvn) {
+        const _an = _audioCtx.createAnalyser();
+        _an.fftSize = 128;                // 64 frequency bins, covers ~0–10 kHz
+        _an.smoothingTimeConstant = 0.75; // gentle temporal averaging
+        _mvn.connect(_an);                // side-tap — does not replace destination
+        this._analyser = _an;
+        this._freqData = new Uint8Array(_an.frequencyBinCount);
+      }
+    } catch { /* Web Audio API unavailable — visualizer will stay dark */ }
 
     // 4A: Save game music state — pause while modal is open.
     // Only capture on first entry; re-entering after Back would see
@@ -1000,7 +1048,6 @@ export class UIScene extends Phaser.Scene {
     this._modalObjects.push(cdImage);
 
     y += 36;
-    this._addSeparator(px, y, PANEL_W, d);
     y += 18;
 
     // 4D: Spinning CD tween (starts paused; driven by play/pause actions)
@@ -1013,13 +1060,17 @@ export class UIScene extends Phaser.Scene {
       paused: true,
     });
 
-    // 4E: "Now Playing" LCD display
+    // 4E: "Now Playing" LCD display + shuffle button
     const lcdH = 36;
+    const SHUF_BTN_W = 52;
+    const SHUF_BTN_H = 28;
+    const SHUF_GAP   = 8;
+    const lcdW = PANEL_W - PAD * 2 - SHUF_BTN_W - SHUF_GAP;
     const lcdGfx = this.add.graphics().setScrollFactor(0).setDepth(d);
     lcdGfx.fillStyle(C.PANEL_BG, 1);
-    lcdGfx.fillRect(px + PAD, y, PANEL_W - PAD * 2, lcdH);
+    lcdGfx.fillRect(px + PAD, y, lcdW, lcdH);
     lcdGfx.lineStyle(1, C.GREEN, 1);
-    lcdGfx.strokeRect(px + PAD, y, PANEL_W - PAD * 2, lcdH);
+    lcdGfx.strokeRect(px + PAD, y, lcdW, lcdH);
     this._modalObjects.push(lcdGfx);
 
     this._nowPlayingTxt = this.add.text(px + PAD + 8, y + lcdH / 2, '♪  -- no track selected --', {
@@ -1027,9 +1078,248 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(d + 1);
     this._modalObjects.push(this._nowPlayingTxt);
 
+    // 4E2: Shuffle toggle button
+    const shufBtnX = px + PAD + lcdW + SHUF_GAP;
+    const shufBtnY = y + (lcdH - SHUF_BTN_H) / 2;
+    const shufBtnGfx = this.add.graphics().setScrollFactor(0).setDepth(d);
+    const _drawShufBtn = () => {
+      const on = this._shuffleEnabled;
+      shufBtnGfx.clear();
+      shufBtnGfx.fillStyle(C.PANEL_BG, 1);
+      shufBtnGfx.fillRect(shufBtnX, shufBtnY, SHUF_BTN_W, SHUF_BTN_H);
+      shufBtnGfx.lineStyle(on ? 2 : 1, on ? C.CYAN : C.GREEN_DIM, 1);
+      shufBtnGfx.strokeRect(shufBtnX, shufBtnY, SHUF_BTN_W, SHUF_BTN_H);
+      shufLbl?.setStyle({ fill: on ? C.CYAN_S : C.GREEN_DIM_S });
+    };
+    this._modalObjects.push(shufBtnGfx);
+
+    const shufLbl = this.add.text(
+      shufBtnX + SHUF_BTN_W / 2, shufBtnY + SHUF_BTN_H / 2,
+      '⤭',
+      { fontSize: '16px', fill: this._shuffleEnabled ? C.CYAN_S : C.GREEN_DIM_S, fontFamily: 'monospace' },
+    ).setOrigin(0.5).setScrollFactor(0).setDepth(d + 1);
+    this._modalObjects.push(shufLbl);
+
+    _drawShufBtn();
+
+    const toggleShuffle = () => {
+      this._shuffleEnabled = !this._shuffleEnabled;
+      _drawShufBtn();
+      this._haptic();
+    };
+
+    const shufFocusItem = {
+      x: shufBtnX, y: shufBtnY, w: SHUF_BTN_W, h: SHUF_BTN_H,
+      activate: toggleShuffle,
+    };
+    this._focusItems.push(shufFocusItem);
+
+    shufBtnGfx.setInteractive(
+      new Phaser.Geom.Rectangle(shufBtnX, shufBtnY, SHUF_BTN_W, SHUF_BTN_H),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    shufBtnGfx.input.cursor = 'pointer';
+    shufBtnGfx.on('pointerdown', () => { this._focusIndex = this._focusItems.indexOf(shufFocusItem); this._drawFocusRing(); toggleShuffle(); });
+    shufBtnGfx.on('pointerover',  () => shufLbl.setAlpha(0.65));
+    shufBtnGfx.on('pointerout',   () => shufLbl.setAlpha(1));
+
     y += lcdH + 12;
-    this._addSeparator(px, y, PANEL_W, d);
-    y += 18;
+
+    // 4F: Progress bar (seek) --------------------------------------------------
+    const PROG_BAR_H = 52;
+    const progTrackX = px + PAD;
+    const progTrackW = PANEL_W - PAD * 2;
+    const progTrackY = y + 32;
+    const progTrackH = 4;
+    const progThumbSz = 14;
+
+    // Time readout label (right-aligned)
+    const progTimeLbl = this.add.text(px + PAD, y + 10, 'SEEK', {
+      fontSize: '10px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(progTimeLbl);
+
+    this._progressTimeTxt = this.add.text(px + PANEL_W - PAD, y + 10, '--:-- / --:--', {
+      fontSize: '10px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(this._progressTimeTxt);
+
+    const progTrackGfx = this.add.graphics().setScrollFactor(0).setDepth(d);
+    const progThumbGfx = this.add.graphics().setScrollFactor(0).setDepth(d + 1);
+    this._modalObjects.push(progTrackGfx, progThumbGfx);
+
+    const formatTime = (secs) => {
+      if (!isFinite(secs) || secs < 0) return '--:--';
+      const m = Math.floor(secs / 60);
+      const s = Math.floor(secs % 60);
+      return `${m}:${String(s).padStart(2, '0')}`;
+    };
+
+    const drawProgress = (frac, elapsed, total) => {
+      const t = Math.max(0, Math.min(1, frac));
+      const thumbX = progTrackX + t * progTrackW;
+
+      progTrackGfx.clear();
+      progTrackGfx.fillStyle(C.GREEN_DIM, 0.6);
+      progTrackGfx.fillRect(progTrackX, progTrackY, progTrackW, progTrackH);
+      progTrackGfx.fillStyle(C.GREEN, 1);
+      progTrackGfx.fillRect(progTrackX, progTrackY, t * progTrackW, progTrackH);
+
+      progThumbGfx.clear();
+      progThumbGfx.fillStyle(C.GREEN, 1);
+      progThumbGfx.fillRect(
+        thumbX - progThumbSz / 2,
+        progTrackY - (progThumbSz - progTrackH) / 2,
+        progThumbSz, progThumbSz,
+      );
+      progThumbGfx.lineStyle(1, C.CYAN, 1);
+      progThumbGfx.strokeRect(
+        thumbX - progThumbSz / 2,
+        progTrackY - (progThumbSz - progTrackH) / 2,
+        progThumbSz, progThumbSz,
+      );
+
+      if (this._progressTimeTxt) {
+        const hasTrack = total > 0;
+        this._progressTimeTxt.setText(
+          hasTrack ? `${formatTime(elapsed)} / ${formatTime(total)}` : '--:-- / --:--',
+        ).setStyle({ fill: hasTrack ? C.GREEN_S : C.GREEN_DIM_S });
+      }
+    };
+
+    // Transparent hit zone for pointer drag
+    const progHitZone = this.add.graphics().setScrollFactor(0).setDepth(d + 2);
+    progHitZone.fillStyle(0xffffff, 0.001);
+    progHitZone.fillRect(progTrackX, progTrackY - 10, progTrackW, progTrackH + 20);
+    progHitZone.setInteractive(
+      new Phaser.Geom.Rectangle(progTrackX, progTrackY - 10, progTrackW, progTrackH + 20),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    progHitZone.input.cursor = 'ew-resize';
+    this._modalObjects.push(progHitZone);
+
+    const getCurrentSound = () =>
+      this._currentPreviewTrackIdx >= 0
+        ? (this._musicPreviewSounds[this._currentPreviewTrackIdx] ?? null)
+        : null;
+
+    let progDragging = false;
+
+    const applyProgressPointerX = (x) => {
+      const sound = getCurrentSound();
+      const frac = Math.max(0, Math.min(1, (x - progTrackX) / progTrackW));
+      if (sound && sound.duration > 0) {
+        sound.seek = frac * sound.duration;
+        drawProgress(frac, frac * sound.duration, sound.duration);
+      } else {
+        drawProgress(frac, 0, 0);
+      }
+    };
+
+    progHitZone.on('pointerdown', (ptr) => {
+      progDragging = true;
+      applyProgressPointerX(ptr.x);
+    });
+
+    const onProgMove = (ptr) => { if (progDragging) applyProgressPointerX(ptr.x); };
+    const onProgUp   = () => { progDragging = false; };
+    this.input.on('pointermove', onProgMove);
+    this.input.on('pointerup',   onProgUp);
+    this._modalPointerHandlers.push(['pointermove', onProgMove], ['pointerup', onProgUp]);
+
+    // Periodic timer — updates fill/thumb and time readout while a track plays
+    const updateProgress = () => {
+      const sound = getCurrentSound();
+      if (sound && sound.duration > 0) {
+        const elapsed = sound.seek;
+        drawProgress(elapsed / sound.duration, elapsed, sound.duration);
+      }
+    };
+    this._progressTimer = this.time.addEvent({ delay: 250, loop: true, callback: updateProgress });
+
+    // Initial draw (empty bar)
+    drawProgress(0, 0, 0);
+
+    // Focus item for keyboard seek (left/right arrows = ±1 second)
+    const SEEK_STEP = 1;
+    this._focusItems.push({
+      x: progTrackX,
+      y: progTrackY - (progThumbSz - progTrackH) / 2,
+      w: progTrackW,
+      h: progThumbSz,
+      activate: () => {},
+      handleArrow: (dir) => {
+        const sound = getCurrentSound();
+        if (!sound || sound.duration <= 0) return false;
+        if (!sound.isPlaying && !sound.isPaused) return false;
+        const newSeek = Math.max(0, Math.min(sound.duration,
+          sound.seek + (dir === 'right' ? SEEK_STEP : -SEEK_STEP)));
+        sound.seek = newSeek;
+        drawProgress(newSeek / sound.duration, newSeek, sound.duration);
+        return true;
+      },
+    });
+
+    y += PROG_BAR_H;
+
+    // 4F2: Waterfall spectrogram ──────────────────────────────────────────────
+    // Newest frequency snapshot is painted at the top row; older rows scroll
+    // downward, producing a classic waterfall/spectrogram effect.
+    const VIZ_W    = PANEL_W - PAD * 2; // 352 px
+    const VIZ_H    = 72;                // visible history: ~72 × 80 ms ≈ 5.8 s
+    const VIZ_ROWS = 2;                 // px per time-snapshot (scroll speed)
+    const NUM_BINS = 64;                // matches analyser.frequencyBinCount
+
+    const vizLbl = this.add.text(px + PAD, y + 10, 'SPECTROGRAM', {
+      fontSize: '10px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(vizLbl);
+    y += 26;
+
+    // Canvas texture — re-created fresh every time the panel opens
+    if (this.textures.exists('__viz__')) this.textures.remove('__viz__');
+    const canvasTexture = this.textures.createCanvas('__viz__', VIZ_W, VIZ_H);
+    const _initCtx = canvasTexture.getContext();
+    _initCtx.fillStyle = '#000000';
+    _initCtx.fillRect(0, 0, VIZ_W, VIZ_H);
+    canvasTexture.refresh();
+
+    const vizImg = this.add.image(px + PAD, y, '__viz__')
+      .setOrigin(0, 0).setScrollFactor(0).setDepth(d);
+    const vizBorder = this.add.graphics().setScrollFactor(0).setDepth(d + 1);
+    vizBorder.lineStyle(1, C.GREEN, 0.7);
+    vizBorder.strokeRect(px + PAD - 1, y - 1, VIZ_W + 2, VIZ_H + 2);
+    this._modalObjects.push(vizImg, vizBorder);
+    y += VIZ_H + 14;
+
+    // Color ramp: 0–255  →  black → dark-green → bright-green → cyan → white
+    const _ampToColor = (v) => {
+      if (v < 10)  return '#000000';
+      if (v < 101) { const g = Math.round(20 + (v - 10) * (200 / 91)); return `rgb(0,${g},0)`; }
+      if (v < 201) { const b = Math.round(((v - 101) / 100) * 255);    return `rgb(0,255,${b})`; }
+      const r = Math.round(((v - 201) / 54) * 200);
+      return `rgb(${r},255,255)`;
+    };
+
+    const _drawViz = () => {
+      if (!this._analyser || !this._freqData || !this.textures.exists('__viz__')) return;
+      this._analyser.getByteFrequencyData(this._freqData);
+      const c2d = canvasTexture.getContext();
+      // Shift all existing rows down by VIZ_ROWS (oldest content falls off bottom)
+      const imgData = c2d.getImageData(0, 0, VIZ_W, VIZ_H - VIZ_ROWS);
+      c2d.putImageData(imgData, 0, VIZ_ROWS);
+      // Paint freshest snapshot at the top
+      c2d.fillStyle = '#000000';
+      c2d.fillRect(0, 0, VIZ_W, VIZ_ROWS);
+      const binW = VIZ_W / NUM_BINS;
+      for (let i = 0; i < NUM_BINS; i++) {
+        c2d.fillStyle = _ampToColor(this._freqData[i]);
+        c2d.fillRect(Math.round(i * binW), 0, Math.ceil(binW), VIZ_ROWS);
+      }
+      canvasTexture.refresh();
+    };
+
+    this._vizTimer = this.time.addEvent({ delay: 80, loop: true, callback: _drawViz });
 
     // 4G: Track rows
     const ROW_H  = 44;
@@ -1092,7 +1382,7 @@ export class UIScene extends Phaser.Scene {
           Phaser.Geom.Rectangle.Contains,
         );
         btnGfx.input.cursor = 'pointer';
-        btnGfx.on('pointerdown', () => { this._haptic(); this._focusIndex = i; this._drawFocusRing(); handleTrackClick(i); });
+        btnGfx.on('pointerdown', () => { this._haptic(); this._focusIndex = this._focusItems.indexOf(focusItem); this._drawFocusRing(); handleTrackClick(i); });
         btnGfx.on('pointerover',  () => lblTxt.setAlpha(0.65));
         btnGfx.on('pointerout',   () => lblTxt.setAlpha(1));
       }
@@ -1116,13 +1406,20 @@ export class UIScene extends Phaser.Scene {
       btnLabels[i]?.setText('⏸');
       this._cdSpinTween?.resume();
       this._nowPlayingTxt?.setText(`♪  ${track.name}`);
+      drawProgress(0, 0, s.duration);
       s.once('complete', () => {
         if (!this._modalObjects.length) return; // modal was closed
         btnLabels[i]?.setText('▶');
+        drawProgress(0, 0, 0);
         this._musicPreviewSounds[i]?.destroy();
         this._musicPreviewSounds[i] = null;
         this._currentPreviewTrackIdx = -1;
-        const nextIdx = (i + 1) % TRACKS.length;
+        const nextIdx = this._shuffleEnabled
+          ? (() => {
+              const pool = TRACKS.map((_, idx) => idx).filter(idx => idx !== i);
+              return pool[Math.floor(Math.random() * pool.length)];
+            })()
+          : (i + 1) % TRACKS.length;
         this._focusIndex = nextIdx;
         this._drawFocusRing();
         handleTrackClick(nextIdx);
@@ -1189,7 +1486,7 @@ export class UIScene extends Phaser.Scene {
               Phaser.Geom.Rectangle.Contains,
             );
             btnGfxList[i].input.cursor = 'pointer';
-            btnGfxList[i].on('pointerdown', () => { this._haptic(); this._focusIndex = i; this._drawFocusRing(); handleTrackClick(i); });
+            btnGfxList[i].on('pointerdown', () => { this._haptic(); this._focusIndex = this._focusItems.indexOf(focusItemRefs[i]); this._drawFocusRing(); handleTrackClick(i); });
             btnGfxList[i].on('pointerover',  () => btnLabels[i].setAlpha(0.65));
             btnGfxList[i].on('pointerout',   () => btnLabels[i].setAlpha(1));
           }
@@ -1203,7 +1500,7 @@ export class UIScene extends Phaser.Scene {
 
     y += 14;
     this._addSeparator(px, y, PANEL_W, d);
-    y += 16;
+    y += 36;
 
     // 4K: Back + Close buttons
     this._addBackAndCloseButtons(px, y, PANEL_W, d, () => {
