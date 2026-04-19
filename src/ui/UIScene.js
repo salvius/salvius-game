@@ -46,6 +46,8 @@ export class UIScene extends Phaser.Scene {
     this._focusItems = [];
     this._focusNavHandlers = [];
     this._modalPointerHandlers = [];
+    this._recording = false;
+    this._recordChunks = [];
   }
 
   preload() {
@@ -53,6 +55,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   create() {
+    this._recordMode = new URLSearchParams(window.location.search).get('record') === 'true';
     this._buildIconBar();
 
     // Close any open modal with Escape
@@ -72,6 +75,7 @@ export class UIScene extends Phaser.Scene {
     this.scale.on('resize', this._onResize, this);
     this.events.on('shutdown', () => {
       this.scale.off('resize', this._onResize, this);
+      if (this._recording) this._stopRecording();
     });
   }
 
@@ -165,29 +169,50 @@ export class UIScene extends Phaser.Scene {
       fontSize: '18px', fill: C.GREEN_DIM_S, fontFamily: 'monospace',
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1);
 
-    // Book button - full hit zone on the background graphic
-    const bookZoneX = barX + 110, bookZoneY = barY + 2, bookZoneW = 46, bookZoneH = barH - 4;
-    const bookBg = this.add.graphics().setScrollFactor(0).setDepth(depth);
-    this._drawGlow(bookBg, bookZoneX, bookZoneY, bookZoneW, bookZoneH);
-    bookBg.setInteractive(
-      new Phaser.Geom.Rectangle(bookZoneX, bookZoneY, bookZoneW, bookZoneH),
-      Phaser.Geom.Rectangle.Contains,
-    );
-    bookBg.input.cursor = 'pointer';
+    let thirdBg, thirdBtn;
+    if (this._recordMode) {
+      // Record / Stop button in place of the book icon
+      const recZoneX = barX + 110, recZoneY = barY + 2, recZoneW = 46, recZoneH = barH - 4;
+      thirdBg = this.add.graphics().setScrollFactor(0).setDepth(depth);
+      this._drawGlow(thirdBg, recZoneX, recZoneY, recZoneW, recZoneH);
+      thirdBg.setInteractive(
+        new Phaser.Geom.Rectangle(recZoneX, recZoneY, recZoneW, recZoneH),
+        Phaser.Geom.Rectangle.Contains,
+      );
+      thirdBg.input.cursor = 'pointer';
 
-    const bookBtn = this.add.text(barX + 133, barY + barH / 2, '📖', {
-      fontSize: '18px', fontFamily: 'monospace',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1);
+      thirdBtn = this.add.text(barX + 133, barY + barH / 2, this._recording ? '⏹' : '⏺', {
+        fontSize: '18px', fill: this._recording ? '#FF4444' : C.GREEN_S, fontFamily: 'monospace',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1);
 
-    bookBg.on('pointerover',  () => bookBtn.setAlpha(0.7));
-    bookBg.on('pointerout',   () => bookBtn.setAlpha(1));
-    bookBg.on('pointerdown',  () => {
-      if (this._modalOpen) return;
-      this._haptic();
-      this._openInfo();
-    });
+      thirdBg.on('pointerover',  () => thirdBtn.setAlpha(0.7));
+      thirdBg.on('pointerout',   () => thirdBtn.setAlpha(1));
+      thirdBg.on('pointerdown',  () => { this._haptic(); this._toggleRecording(); });
+    } else {
+      // Book button - full hit zone on the background graphic
+      const bookZoneX = barX + 110, bookZoneY = barY + 2, bookZoneW = 46, bookZoneH = barH - 4;
+      thirdBg = this.add.graphics().setScrollFactor(0).setDepth(depth);
+      this._drawGlow(thirdBg, bookZoneX, bookZoneY, bookZoneW, bookZoneH);
+      thirdBg.setInteractive(
+        new Phaser.Geom.Rectangle(bookZoneX, bookZoneY, bookZoneW, bookZoneH),
+        Phaser.Geom.Rectangle.Contains,
+      );
+      thirdBg.input.cursor = 'pointer';
 
-    this._barObjects = [barBg, musicBg, musicBtn, div1, gearBg, gearBtn, div2, bookBg, bookBtn];
+      thirdBtn = this.add.text(barX + 133, barY + barH / 2, '📖', {
+        fontSize: '18px', fontFamily: 'monospace',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1);
+
+      thirdBg.on('pointerover',  () => thirdBtn.setAlpha(0.7));
+      thirdBg.on('pointerout',   () => thirdBtn.setAlpha(1));
+      thirdBg.on('pointerdown',  () => {
+        if (this._modalOpen) return;
+        this._haptic();
+        this._openInfo();
+      });
+    }
+
+    this._barObjects = [barBg, musicBg, musicBtn, div1, gearBg, gearBtn, div2, thirdBg, thirdBtn];
   }
 
   _drawGlow(gfx, x, y, w, h) {
@@ -1512,6 +1537,88 @@ export class UIScene extends Phaser.Scene {
 
     // 4J: Init keyboard focus
     this._initModalFocus();
+  }
+
+  // ── Screen recording ──────────────────────────────────────────────────────
+
+  _toggleRecording() {
+    if (this._recording) {
+      this._stopRecording();
+    } else {
+      this._startRecording();
+    }
+  }
+
+  _startRecording() {
+    if (!this.game.canvas.captureStream || !window.MediaRecorder) {
+      console.warn('[Recorder] canvas.captureStream or MediaRecorder not supported in this browser.');
+      return;
+    }
+    try {
+      const videoStream = this.game.canvas.captureStream(30);
+
+      // Tap the master volume node so all game audio is captured.
+      // The side-connection does not interrupt normal speaker/headphone playback.
+      let audioTracks = [];
+      try {
+        const ctx = this.sound.context;
+        const mvn = this.sound.masterVolumeNode;
+        if (ctx && mvn) {
+          this._recordAudioDest = ctx.createMediaStreamDestination();
+          mvn.connect(this._recordAudioDest);
+          audioTracks = this._recordAudioDest.stream.getAudioTracks();
+        }
+      } catch { /* Web Audio tap unavailable — record video only */ }
+
+      const combined = new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...audioTracks,
+      ]);
+
+      const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+        .find(m => MediaRecorder.isTypeSupported(m)) ?? '';
+
+      this._recordChunks = [];
+      this._mediaRecorder = new MediaRecorder(combined, mimeType ? { mimeType } : undefined);
+
+      this._mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) this._recordChunks.push(e.data);
+      };
+
+      this._mediaRecorder.onstop = () => {
+        const blob = new Blob(this._recordChunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `resource-rescue-${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        this._recordChunks = [];
+      };
+
+      this._mediaRecorder.start(1000); // collect a chunk every second
+      this._recording = true;
+      this._buildIconBar();
+    } catch (err) {
+      console.error('[Recorder] Failed to start recording:', err);
+    }
+  }
+
+  _stopRecording() {
+    if (this._mediaRecorder && this._mediaRecorder.state !== 'inactive') {
+      this._mediaRecorder.stop();
+    }
+    // Disconnect the audio tap to avoid accumulating connections on re-record.
+    try {
+      if (this._recordAudioDest) {
+        this.sound.masterVolumeNode.disconnect(this._recordAudioDest);
+        this._recordAudioDest = null;
+      }
+    } catch { /* ignore */ }
+    this._recording = false;
+    this._buildIconBar();
   }
 
   // ── About panel ─────────────────────────────────────────────────
