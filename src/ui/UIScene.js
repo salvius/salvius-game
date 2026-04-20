@@ -34,7 +34,7 @@ const TRACKS = [
   { key: 'music_level4', src: '/music/04-breath-of-a-dying-star.wav',
     name: 'Breath of a Dying Star',       num: '04', hue: 285 },  // magenta-violet – nebula
 ];
-const PANEL_H_ABOUT   = 454;
+const PANEL_H_ABOUT   = 548;
 const PAD             = 24;
 const ICON_BAR_H  = 36;
 const ICON_BAR_PAD= 8;
@@ -1720,6 +1720,44 @@ export class UIScene extends Phaser.Scene {
     robotLink.on('pointerdown', () => { this._haptic(); window.open('https://salvius.org', '_blank', 'noopener,noreferrer'); });
     robotLink.on('pointerover',  () => robotLink.setAlpha(0.7));
     robotLink.on('pointerout',   () => robotLink.setAlpha(1));
+    y += lineH;
+
+    y += 10;
+    this._addSeparator(px, y, PANEL_W, d);
+    y += 18;
+
+    const supportLabel = this.add.text(px + PAD, y, 'SUPPORT', {
+      fontSize: '11px', fill: C.GREEN_S, fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(supportLabel);
+    y += lineH;
+
+    const emailLink = this.add.text(px + PAD, y, '  > support@salvius.org', {
+      fontSize: '11px', fill: C.CYAN_S, fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(emailLink);
+    emailLink.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, PANEL_W - PAD * 2, lineH),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    emailLink.input.cursor = 'pointer';
+    emailLink.on('pointerdown', () => { this._haptic(); window.open('mailto:support@salvius.org'); });
+    emailLink.on('pointerover',  () => emailLink.setAlpha(0.7));
+    emailLink.on('pointerout',   () => emailLink.setAlpha(1));
+    y += lineH;
+
+    const githubLink = this.add.text(px + PAD, y, '  > github.com/salvius/salvius-game', {
+      fontSize: '11px', fill: C.CYAN_S, fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(d);
+    this._modalObjects.push(githubLink);
+    githubLink.setInteractive(
+      new Phaser.Geom.Rectangle(0, 0, PANEL_W - PAD * 2, lineH),
+      Phaser.Geom.Rectangle.Contains,
+    );
+    githubLink.input.cursor = 'pointer';
+    githubLink.on('pointerdown', () => { this._haptic(); window.open('https://github.com/salvius/salvius-game', '_blank', 'noopener,noreferrer'); });
+    githubLink.on('pointerover',  () => githubLink.setAlpha(0.7));
+    githubLink.on('pointerout',   () => githubLink.setAlpha(1));
     y += lineH;
 
     y += 10;
