@@ -1,5 +1,7 @@
 import { TouchControls, TOUCH_HUD_HEIGHT } from '../ui/TouchControls.js';
 import { GameSettings } from '../settings/GameSettings.js';
+import { createPlayerAnimations } from '../player/PlayerAnimations.js';
+import { updatePlayerMovement } from '../player/PlayerController.js';
 
 const WORLD_WIDTH = 4000;
 
@@ -77,34 +79,7 @@ export class Level1Scene extends Phaser.Scene {
     this._placeItems(groundY);
 
     // ── Animations ────────────────────────────────────────────────────────
-    if (!this.anims.exists('idle')) {
-      this.anims.create({
-        key: 'idle',
-        frames: this.anims.generateFrameNumbers('salvius', { start: 0, end: 2 }),
-        frameRate: 1, repeat: -1,
-      });
-    }
-    if (!this.anims.exists('walk')) {
-      this.anims.create({
-        key: 'walk',
-        frames: this.anims.generateFrameNumbers('salvius', { start: 0, end: 5 }),
-        frameRate: 8, repeat: -1,
-      });
-    }
-    if (!this.anims.exists('run')) {
-      this.anims.create({
-        key: 'run',
-        frames: this.anims.generateFrameNumbers('salvius', { start: 6, end: 11 }),
-        frameRate: 12, repeat: -1,
-      });
-    }
-    if (!this.anims.exists('jump')) {
-      this.anims.create({
-        key: 'jump',
-        frames: this.anims.generateFrameNumbers('salvius', { start: 14, end: 16 }),
-        frameRate: 10, repeat: 0,
-      });
-    }
+    createPlayerAnimations(this);
 
     // ── Player ────────────────────────────────────────────────────────────
     this.player = this.physics.add.sprite(250, groundY, 'salvius')
@@ -137,9 +112,6 @@ export class Level1Scene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.shiftKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
     this.wasd = this.input.keyboard.addKeys({ up: 'W', left: 'A', right: 'D', space: 'SPACE' });
-    this.playerSpeed = 200;
-    this.playerRunSpeed = 400;
-
     // ── Touch controls (mobile only) ──────────────────────────────────────
     if (this.sys.game.device.input.touch) {
       this.touchInput = new TouchControls(this);
@@ -166,39 +138,7 @@ export class Level1Scene extends Phaser.Scene {
       this.bgMidDunes.tilePositionX = this.cameras.main.scrollX * 0.25;
     }
 
-    const player = this.player;
-    const onGround = player.body.blocked.down;
-    const left    = this.cursors.left.isDown  || this.wasd.left.isDown  || (this.touchInput?.left  ?? false);
-    const right   = this.cursors.right.isDown || this.wasd.right.isDown || (this.touchInput?.right ?? false);
-    const running = this.shiftKey.isDown      || (this.touchInput?.run   ?? false);
-    const speed = running ? this.playerRunSpeed : this.playerSpeed;
-    const moveAnim = running ? 'run' : 'walk';
-
-    const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up)
-                      || Phaser.Input.Keyboard.JustDown(this.wasd.up)
-                      || Phaser.Input.Keyboard.JustDown(this.wasd.space)
-                      || (this.touchInput?.consumeJump() ?? false);
-    if (jumpPressed && onGround) {
-      player.setVelocityY(-700);
-      player.play('jump', true);
-    }
-
-    const grounded = onGround && player.body.velocity.y >= 0;
-
-    if (left && !right) {
-      player.setVelocityX(-speed);
-      player.setFlipX(true);
-      if (grounded && player.anims.currentAnim?.key !== moveAnim) player.play(moveAnim);
-    } else if (right && !left) {
-      player.setVelocityX(speed);
-      player.setFlipX(false);
-      if (grounded && player.anims.currentAnim?.key !== moveAnim) player.play(moveAnim);
-    } else {
-      player.setVelocityX(0);
-      if (grounded && player.anims.currentAnim?.key !== 'idle') player.play('idle');
-    }
-
-    if (grounded && player.anims.currentAnim?.key === 'jump') player.play('idle');
+    updatePlayerMovement(this);
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────
