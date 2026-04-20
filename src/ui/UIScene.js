@@ -26,13 +26,13 @@ const PANEL_H_MUSIC   = 650;
 
 const TRACKS = [
   { key: 'music_level1', src: '/music/01-alkali-plains.wav',
-    name: 'Alkali Plains',               num: '01' },
+    name: 'Alkali Plains',               num: '01', hue: 35  },  // amber – desert sand
   { key: 'music_level2', src: '/music/02-city-of-scrap.wav',
-    name: 'City of Scrap',               num: '02' },
+    name: 'City of Scrap',               num: '02', hue: 18  },  // rusty red-orange – industrial metal
   { key: 'music_level3', src: '/music/03-frequency-of-the-forgotten.wav',
-    name: 'Frequency of the Forgotten',  num: '03' },
+    name: 'Frequency of the Forgotten',  num: '03', hue: 210 },  // electric blue – radio waves
   { key: 'music_level4', src: '/music/04-breath-of-a-dying-star.wav',
-    name: 'Breath of a Dying Star',       num: '04' },
+    name: 'Breath of a Dying Star',       num: '04', hue: 285 },  // magenta-violet – nebula
 ];
 const PANEL_H_ABOUT   = 454;
 const PAD             = 24;
@@ -1312,22 +1312,44 @@ export class UIScene extends Phaser.Scene {
     const vizImg = this.add.image(px + PAD, y, '__viz__')
       .setOrigin(0, 0).setScrollFactor(0).setDepth(d);
     const vizBorder = this.add.graphics().setScrollFactor(0).setDepth(d + 1);
-    vizBorder.lineStyle(1, C.GREEN, 0.7);
-    vizBorder.strokeRect(px + PAD - 1, y - 1, VIZ_W + 2, VIZ_H + 2);
+    const vizRowY = y;
+    const _updateVizBorder = (hue) => {
+      const hex = Phaser.Display.Color.HSLToColor(hue / 360, 1, 0.5).color;
+      vizBorder.clear();
+      vizBorder.lineStyle(1, hex, 0.7);
+      vizBorder.strokeRect(px + PAD - 1, vizRowY - 1, VIZ_W + 2, VIZ_H + 2);
+    };
+    _updateVizBorder(this._vizHue ?? 120);
     this._modalObjects.push(vizImg, vizBorder);
     y += VIZ_H + 14;
 
-    // Color ramp: 0–255  →  black → dark-green → bright-green → cyan → white
-    const _ampToColor = (v) => {
+    // Color ramp: 0–255 → black → dark hue → pure hue → light tint → near-white
+    // hue is in [0,360]; at hue=120 (green) this approximates the original ramp.
+    const _ampToColor = (v, hue) => {
       if (v < 10)  return '#000000';
-      if (v < 101) { const g = Math.round(20 + (v - 10) * (200 / 91)); return `rgb(0,${g},0)`; }
-      if (v < 201) { const b = Math.round(((v - 101) / 100) * 255);    return `rgb(0,255,${b})`; }
-      const r = Math.round(((v - 201) / 54) * 200);
-      return `rgb(${r},255,255)`;
+      if (v < 101) { const l = Math.round(4 + (v - 10) * (46 / 91));   return `hsl(${hue},100%,${l}%)`; }
+      if (v < 201) { const l = Math.round(50 + (v - 101) * (20 / 100)); return `hsl(${hue},100%,${l}%)`; }
+      const s = Math.round(80 - ((v - 201) / 54) * 30);
+      const l = Math.round(70 + ((v - 201) / 54) * 25);
+      return `hsl(${hue},${s}%,${l}%)`;
     };
 
     const _drawViz = () => {
       if (!this._analyser || !this._freqData || !this.textures.exists('__viz__')) return;
+
+      // Advance hue toward the track's target after the 3 s green hold expires
+      let hue = this._vizHue ?? 120;
+      const target = this._vizTargetHue ?? 120;
+      if (hue !== target && this.time.now >= (this._vizTransitionAt ?? Infinity)) {
+        const maxStep = 7.2; // °/frame → 180° in 2 s at 80 ms/frame
+        const diff = ((target - hue) % 360 + 540) % 360 - 180; // shortest-path delta
+        const step = Math.sign(diff) * Math.min(Math.abs(diff), maxStep);
+        hue = ((hue + step) % 360 + 360) % 360;
+        if (Math.abs(diff) <= maxStep) hue = target; // snap to avoid float drift
+        this._vizHue = hue;
+        _updateVizBorder(hue);
+      }
+
       this._analyser.getByteFrequencyData(this._freqData);
       const c2d = canvasTexture.getContext();
       // Shift all existing rows down by VIZ_ROWS (oldest content falls off bottom)
@@ -1338,7 +1360,7 @@ export class UIScene extends Phaser.Scene {
       c2d.fillRect(0, 0, VIZ_W, VIZ_ROWS);
       const binW = VIZ_W / NUM_BINS;
       for (let i = 0; i < NUM_BINS; i++) {
-        c2d.fillStyle = _ampToColor(this._freqData[i]);
+        c2d.fillStyle = _ampToColor(this._freqData[i], hue);
         c2d.fillRect(Math.round(i * binW), 0, Math.ceil(binW), VIZ_ROWS);
       }
       canvasTexture.refresh();
@@ -1426,6 +1448,10 @@ export class UIScene extends Phaser.Scene {
       }
       const s = this._musicPreviewSounds[i];
       this._currentPreviewTrackIdx = i;
+      // Reset hue to green and schedule the transition to this track's theme colour
+      this._vizHue = 120;
+      this._vizTargetHue = TRACKS[i].hue;
+      this._vizTransitionAt = this.time.now + 3000;
       s.play();
       this._acquireWakeLock();
       btnLabels[i]?.setText('⏸');
